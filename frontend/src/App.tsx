@@ -179,7 +179,7 @@ function App() {
               </div>
               <input
                 type="range"
-                min={10}
+                min={8}
                 max={18}
                 step={1}
                 value={fontSize}
