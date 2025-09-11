@@ -14,6 +14,8 @@ function App() {
   const [markdownContent, setMarkdownContent] = useState('');
   const [filename, setFilename] = useState('');
   const [cssStyles, setCssStyles] = useState('');
+  // PDF base font size (px)
+  const [fontSize, setFontSize] = useState<number>(13);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [error, setError] = useState('');
@@ -38,6 +40,7 @@ function App() {
       formData.append('markdown_content', markdownContent);
       if (filename) formData.append('filename', filename);
       if (cssStyles) formData.append('css_styles', cssStyles);
+      if (fontSize) formData.append('font_size', String(fontSize));
 
       const response = await fetch('/convert', {
         method: 'POST',
@@ -127,6 +130,7 @@ function App() {
         setIsPreviewLoading(true);
         const formData = new FormData();
         formData.append('markdown_content', markdownContent);
+        if (fontSize) formData.append('font_size', String(fontSize));
         const res = await fetch('/preview', { method: 'POST', body: formData });
         if (!res.ok) throw new Error('Failed to render preview');
         const html = await res.text();
@@ -140,7 +144,7 @@ function App() {
     return () => {
       if (previewTimer.current) window.clearTimeout(previewTimer.current);
     };
-  }, [markdownContent]);
+  }, [markdownContent, fontSize]);
 
   return (
     <div className={`min-h-screen ${isDarkMode ? 'dark' : ''}`} style={{ backgroundColor: 'var(--background)' }}>
@@ -166,6 +170,24 @@ function App() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:[grid-template-columns:1.1fr_1.4fr] 2xl:[grid-template-columns:1fr_1.6fr]">
           {/* Input Section */}
           <div className="space-y-6 min-w-0">
+            {/* PDF Settings */}
+            <div className="card">
+              <h2 className="text-lg font-semibold mb-4">PDF Settings</h2>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm" style={{ color: 'var(--muted)' }}>Font size</span>
+                <span className="text-sm" style={{ color: 'var(--text)' }}>{fontSize}px</span>
+              </div>
+              <input
+                type="range"
+                min={10}
+                max={18}
+                step={1}
+                value={fontSize}
+                onChange={(e) => setFontSize(parseInt(e.target.value, 10))}
+                className="w-full"
+                aria-label="Font size"
+              />
+            </div>
             {/* File Upload Area */}
             <div className="card">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
