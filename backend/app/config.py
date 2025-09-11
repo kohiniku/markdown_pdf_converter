@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     
     pdf_engine: str = "weasyprint"
     pdf_timeout: int = 30
+    newline_as_space: bool = False
     
     secret_key: str = "your-secret-key-here"
     access_token_expire_minutes: int = 30

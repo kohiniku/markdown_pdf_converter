@@ -45,7 +45,8 @@ async def convert_markdown_to_pdf(
     markdown_content: str = Form(...),
     filename: Optional[str] = Form(None),
     css_styles: Optional[str] = Form(None),
-    emoji_mode: Optional[str] = Form("unicode")
+    emoji_mode: Optional[str] = Form("unicode"),
+    newline_to_space: Optional[bool] = Form(None)
 ):
     try:
         if not markdown_content.strip():
@@ -58,19 +59,23 @@ async def convert_markdown_to_pdf(
             elif mode in ("off", "disable", "disabled"):
                 markdown_content = emoji_lib.replace_emoji(markdown_content, replace='')
 
+        # `extra` を使わずに必要な拡張を個別指定（sane_lists を避け、GFMに近いリスト挙動を許可）
         extensions = [
-            'extra',               # abbr, attr_list, def_list, fenced_code, footnotes, tables
             'admonition',          # !!! note/warning など
+            'abbr',                # *[HTML]: Hyper Text ...
+            'attr_list',           # {: .class }
+            'def_list',            # 定義リスト
+            'footnotes',
+            'tables',
             'pymdownx.details',
-            'pymdownx.superfences',
+            'pymdownx.superfences', # Fenced code (拡張)
             'pymdownx.tasklist',
             'pymdownx.tilde',      # ~~strike~~
             'pymdownx.mark',       # ==mark==
             'pymdownx.betterem',
             'pymdownx.magiclink',  # URL自動リンク
             'codehilite',
-            'toc',
-            'tables'
+            'toc'
         ]
         extension_configs = {
             'codehilite': {
@@ -85,6 +90,10 @@ async def convert_markdown_to_pdf(
                 'hide_protocol': True
             }
         }
+
+        # Normalize newlines to spaces if requested or configured
+        if (newline_to_space is True) or (newline_to_space is None and settings.newline_as_space):
+            markdown_content = _collapse_soft_newlines(markdown_content)
 
         html = markdown.markdown(
             markdown_content,
@@ -202,7 +211,8 @@ async def convert_markdown_to_pdf(
 async def preview_markdown(
     markdown_content: str = Form(...),
     css_styles: Optional[str] = Form(None),
-    emoji_mode: Optional[str] = Form("unicode")
+    emoji_mode: Optional[str] = Form("unicode"),
+    newline_to_space: Optional[bool] = Form(None)
 ):
     """Render Markdown to styled HTML for live preview."""
     try:
@@ -218,8 +228,12 @@ async def preview_markdown(
                 markdown_content = emoji_lib.replace_emoji(markdown_content, replace='')
 
         extensions = [
-            'extra',
             'admonition',
+            'abbr',
+            'attr_list',
+            'def_list',
+            'footnotes',
+            'tables',
             'pymdownx.details',
             'pymdownx.superfences',
             'pymdownx.tasklist',
@@ -228,8 +242,7 @@ async def preview_markdown(
             'pymdownx.betterem',
             'pymdownx.magiclink',
             'codehilite',
-            'toc',
-            'tables'
+            'toc'
         ]
         extension_configs = {
             'codehilite': {
@@ -244,6 +257,9 @@ async def preview_markdown(
                 'hide_protocol': True
             }
         }
+
+        if (newline_to_space is True) or (newline_to_space is None and settings.newline_as_space):
+            markdown_content = _collapse_soft_newlines(markdown_content)
 
         html = markdown.markdown(
             markdown_content,
@@ -365,6 +381,70 @@ async def download_pdf(filename: str):
     if not output_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     
+def _collapse_soft_newlines(md: str) -> str:
+    """Join single newlines inside normal paragraphs into spaces.
+    - Preserves blank-line paragraph breaks
+    - Leaves code fences/indented code, lists, headings, blockquotes, tables as-is
+    """
+    lines = md.splitlines()
+    out_lines = []
+    para_buf: list[str] = []
+    in_fence = False
+    fence_delim = ""
+
+    import re
+    re_blank = re.compile(r"^\s*$")
+    re_fence = re.compile(r"^\s*(```|~~~)")
+    re_indented_code = re.compile(r"^\s{4,}")
+    re_heading = re.compile(r"^\s*#{1,6}\s+")
+    re_list = re.compile(r"^\s*(?:[*+-]|\d+[\.)])\s+")
+    re_blockquote = re.compile(r"^\s*>\s*")
+    re_table = re.compile(r"^\s*\|")
+    re_hr = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$")
+    re_admon = re.compile(r"^\s*!!!\b")
+    re_html = re.compile(r"^\s*<[/!?]?")
+
+    def flush_para():
+        nonlocal para_buf
+        if para_buf:
+            out_lines.append(" ".join(s.strip() for s in para_buf))
+            para_buf = []
+
+    for raw in lines:
+        line = raw.rstrip("\n")
+        if in_fence:
+            out_lines.append(line)
+            if re_fence.match(line):
+                in_fence = False
+            continue
+
+        if re_fence.match(line):
+            flush_para()
+            in_fence = True
+            out_lines.append(line)
+            continue
+
+        if (re_blank.match(line) or re_indented_code.match(line) or re_heading.match(line)
+            or re_blockquote.match(line) or re_table.match(line)
+            or re_hr.match(line) or re_admon.match(line) or re_html.match(line)):
+            flush_para()
+            out_lines.append(line)
+            continue
+
+        # If a list starts directly after a paragraph (no blank line),
+        # insert a blank line to ensure Markdown parser recognizes a list.
+        if re_list.match(line):
+            flush_para()
+            if out_lines and out_lines[-1] != "":
+                out_lines.append("")
+            out_lines.append(line)
+            continue
+
+        # normal paragraph line → buffer
+        para_buf.append(line)
+
+    flush_para()
+    return "\n".join(out_lines)
     return FileResponse(
         path=str(output_path),
         filename=filename,
