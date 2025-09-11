@@ -163,9 +163,9 @@ function App() {
           </button>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:[grid-template-columns:1.1fr_1.4fr] 2xl:[grid-template-columns:1fr_1.6fr]">
           {/* Input Section */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-w-0">
             {/* File Upload Area */}
             <div className="card">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -212,7 +212,7 @@ function App() {
           </div>
 
           {/* Output Section */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-w-0">
             {/* Convert Button */}
             <button
               onClick={handleConvert}
@@ -261,7 +261,7 @@ function App() {
               {previewHtml ? (
                 <iframe
                   title="preview"
-                  style={{ width: '100%', height: '600px', border: '1px solid var(--border)', borderRadius: 12, backgroundColor: 'white' }}
+                  className="preview-frame"
                   srcDoc={previewHtml}
                 />
               ) : (

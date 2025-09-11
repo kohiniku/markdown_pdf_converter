@@ -46,7 +46,8 @@ async def convert_markdown_to_pdf(
     filename: Optional[str] = Form(None),
     css_styles: Optional[str] = Form(None),
     emoji_mode: Optional[str] = Form("unicode"),
-    newline_to_space: Optional[bool] = Form(None)
+    newline_to_space: Optional[bool] = Form(None),
+    font_size: Optional[int] = Form(None)
 ):
     try:
         if not markdown_content.strip():
@@ -166,14 +167,18 @@ async def convert_markdown_to_pdf(
         .codehilite { background: #f8f8f8; border: 1px solid #ddd; border-radius: 6px; padding: 12px; overflow-x: auto; }
         """
         
-        final_css = css_styles if css_styles else default_css
+        # Base font-size override
+        base_size = font_size if font_size is not None else settings.pdf_base_font_size
+        base_css = f"body {{ font-size: {base_size}px; }}\n" if base_size else ""
+
+        final_css = (css_styles if css_styles else default_css)
         
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
-            <style>{final_css}</style>
+            <style>{base_css}{final_css}</style>
         </head>
         <body>
             {html}
@@ -212,7 +217,8 @@ async def preview_markdown(
     markdown_content: str = Form(...),
     css_styles: Optional[str] = Form(None),
     emoji_mode: Optional[str] = Form("unicode"),
-    newline_to_space: Optional[bool] = Form(None)
+    newline_to_space: Optional[bool] = Form(None),
+    font_size: Optional[int] = Form(None)
 ):
     """Render Markdown to styled HTML for live preview."""
     try:
@@ -327,7 +333,9 @@ async def preview_markdown(
         .codehilite { background: #f8f8f8; border: 1px solid #ddd; border-radius: 6px; padding: 12px; overflow-x: auto; }
         """
 
-        final_css = css_styles if css_styles else default_css
+        base_size = font_size if font_size is not None else settings.pdf_base_font_size
+        base_css = f"body {{ font-size: {base_size}px; }}\n" if base_size else ""
+        final_css = (css_styles if css_styles else default_css)
 
         html_content = f"""
         <!DOCTYPE html>
@@ -335,7 +343,7 @@ async def preview_markdown(
         <head>
             <meta charset=\"utf-8\">
             <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-            <style>{final_css}</style>
+            <style>{base_css}{final_css}</style>
         </head>
         <body>
             {html}
@@ -380,7 +388,12 @@ async def download_pdf(filename: str):
     
     if not output_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    
+    return FileResponse(
+        path=str(output_path),
+        filename=filename,
+        media_type="application/pdf"
+    )
+
 def _collapse_soft_newlines(md: str) -> str:
     """Join single newlines inside normal paragraphs into spaces.
     - Preserves blank-line paragraph breaks
@@ -445,11 +458,6 @@ def _collapse_soft_newlines(md: str) -> str:
 
     flush_para()
     return "\n".join(out_lines)
-    return FileResponse(
-        path=str(output_path),
-        filename=filename,
-        media_type="application/pdf"
-    )
 
 @app.get("/health")
 async def health_check():

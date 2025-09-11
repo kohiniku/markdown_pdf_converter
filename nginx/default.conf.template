@@ -9,6 +9,9 @@ upstream frontend {
 server {
     listen ${NGINX_INTERNAL_HTTP_PORT};
     server_name localhost;
+    client_max_body_size 20m;
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
 
     # Frontend routes
     location / {
@@ -69,4 +72,3 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
-

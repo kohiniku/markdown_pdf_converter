@@ -80,7 +80,18 @@ body {
 
 .textarea {
   resize: vertical;
-  min-height: 200px;
+  /* responsive min-height: 160px .. 520px depending on viewport height */
+  min-height: clamp(160px, 40vh, 520px);
+}
+
+/* Responsive preview frame height */
+.preview-frame {
+  width: 100%;
+  /* min 280px, prefer 70vh, cap at 840px */
+  height: clamp(280px, 70vh, 840px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background-color: white;
 }
 
 .drag-area {
