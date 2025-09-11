@@ -1,0 +1,40 @@
+from pydantic_settings import BaseSettings
+from pydantic import field_validator
+from typing import List, Any
+import os, json
+
+class Settings(BaseSettings):
+    database_url: str = "sqlite:///./app.db"
+    debug: bool = True
+    host: str = "0.0.0.0"
+    port: int = 8000
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    
+    upload_dir: str = "uploads"
+    output_dir: str = "output"
+    max_file_size: int = 10 * 1024 * 1024  # 10MB
+    
+    pdf_engine: str = "weasyprint"
+    pdf_timeout: int = 30
+    
+    secret_key: str = "your-secret-key-here"
+    access_token_expire_minutes: int = 30
+
+    class Config:
+        env_file = ".env"
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> Any:
+        """Accept JSON list or comma-separated string for CORS_ORIGINS."""
+        if isinstance(v, str):
+            s = v.strip()
+            if s.startswith("["):
+                try:
+                    return json.loads(s)
+                except Exception:
+                    pass
+            return [item.strip() for item in s.split(",") if item.strip()]
+        return v
+
+settings = Settings()
