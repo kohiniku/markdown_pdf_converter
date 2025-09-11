@@ -1,24 +1,24 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
+/// <reference types="vitest" />
 import App from './App';
 
 // Mock fetch globally
-const g = globalThis;
-g.fetch = jest.fn();
+const g: any = globalThis as any;
+g.fetch = vi.fn();
 
 // Mock FileReader
-const mockFileReader = {
-  readAsText: jest.fn(),
+const mockFileReader: any = {
+  readAsText: vi.fn(),
   result: '',
   onload: null,
   onerror: null,
   readyState: 0,
 };
-g.FileReader = jest.fn().mockImplementation(() => mockFileReader);
+g.FileReader = vi.fn().mockImplementation(() => mockFileReader);
 
 describe('App Component', () => {
   beforeEach(() => {
-    g.fetch.mockClear();
+    (g.fetch as any).mockClear();
     // Default: preview endpoint returns simple HTML
     g.fetch.mockResolvedValue({
       ok: true,
@@ -56,10 +56,13 @@ describe('App Component', () => {
   });
 
   test('shows error when conversion fails', async () => {
-    // 1st: preview ok, 2nd: convert fails
-    g.fetch
-      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve('<html></html>') })
-      .mockRejectedValueOnce(new Error('Network error'));
+    // Preview returns HTML; convert fails with network error
+    (g.fetch as any).mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/convert')) {
+        return Promise.reject(new Error('Network error'));
+      }
+      return Promise.resolve({ ok: true, text: () => Promise.resolve('<html></html>') });
+    });
 
     render(<App />);
     fireEvent.change(screen.getByPlaceholderText(/Enter your Markdown content here/i), {
@@ -79,7 +82,7 @@ describe('App Component', () => {
       download_url: '/download/test.pdf',
     };
 
-    g.fetch.mockImplementation((url) => {
+    (g.fetch as any).mockImplementation((url: string) => {
       if (typeof url === 'string' && url.includes('/convert')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(mockResponse) });
       }
@@ -95,4 +98,3 @@ describe('App Component', () => {
     await waitFor(() => expect(screen.getByText(/PDF Generated Successfully!/i)).toBeInTheDocument());
   });
 });
-

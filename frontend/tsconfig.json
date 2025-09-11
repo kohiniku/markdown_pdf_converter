@@ -6,7 +6,7 @@
       "dom.iterable",
       "es6"
     ],
-    "types": ["jest", "node"],
+    "types": ["vitest/globals", "node"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -26,6 +26,7 @@
   ],
   "exclude": [
     "src/**/*.test.*",
+    "src/**/*.spec.*",
     "src/setupTests.ts"
   ]
 }

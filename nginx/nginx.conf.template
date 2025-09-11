@@ -4,15 +4,15 @@ events {
 
 http {
     upstream backend {
-        server backend:8000;
+        server backend:${BACKEND_INTERNAL_PORT};
     }
 
     upstream frontend {
-        server frontend:3000;
+        server frontend:${FRONTEND_INTERNAL_PORT};
     }
 
     server {
-        listen 80;
+        listen ${NGINX_INTERNAL_HTTP_PORT};
         server_name localhost;
 
         # Frontend routes

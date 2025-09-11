@@ -9,6 +9,5 @@ RUN pnpm install
 
 COPY . .
 
-EXPOSE 3000
-
-CMD ["pnpm", "start"]
+# No EXPOSE to avoid implying default port
+CMD ["sh", "-c", "PORT=${PORT:?PORT not set} pnpm start"]

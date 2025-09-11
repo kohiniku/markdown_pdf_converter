@@ -263,3 +263,5 @@ temp/
 # Generated PDFs
 uploads/
 output/
+
+frontend/.pnpm-store/*

@@ -7,8 +7,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./app.db"
     debug: bool = True
     host: str = "0.0.0.0"
-    port: int = 8000
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    port: int | None = None
+    cors_origins: List[str] = []
     
     upload_dir: str = "uploads"
     output_dir: str = "output"
@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
 
     class Config:
+        # Load from backend/.env (pydantic will let real env override .env)
         env_file = ".env"
 
     @field_validator("cors_origins", mode="before")

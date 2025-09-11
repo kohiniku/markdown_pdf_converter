@@ -48,15 +48,25 @@ git clone <repository-url>
 cd markdown-pdf-converter
 ```
 
-2. Start all services:
+2. ルート `.env` にポートを定義（初期値はありません）:
+```bash
+cp .env.example .env
+# 必須（例）:
+# BACKEND_INTERNAL_PORT=8000
+# BACKEND_HOST_PORT=8000
+# FRONTEND_INTERNAL_PORT=3000
+# FRONTEND_HOST_PORT=3000
+# NGINX_HTTP_PORT=80
+# NGINX_HTTPS_PORT=443
+# NGINX_INTERNAL_HTTP_PORT=80
+```
+
+3. Start all services:
 ```bash
 docker-compose up --build
 ```
 
-3. Access the application:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - Nginx (production-like): http://localhost:80
+4. Access the application (ports are defined in your `.env`)
 
 ### Local Development
 
@@ -194,7 +204,7 @@ markdown-pdf-converter/
 │   ├── tailwind.config.js     # Tailwind configuration
 │   └── tsconfig.json          # TypeScript configuration
 ├── nginx/
-│   └── nginx.conf             # Nginx configuration
+│   └── nginx.conf.template    # Nginx configuration (env-templated)
 ├── docker-compose.yml         # Container orchestration
 ├── .gitignore
 ├── AGENTS.md                  # Development guidelines
@@ -204,13 +214,36 @@ markdown-pdf-converter/
 
 ## Environment Variables
 
-### Backend (.env)
+### Centralized Ports (project root `.env`)
+全てのポートは `.env` で必須指定（初期値なし）。
+
+```env
+# Backend (FastAPI/Uvicorn)
+# BACKEND_INTERNAL_PORT=
+# BACKEND_HOST_PORT=
+
+# Frontend (React dev server)
+# FRONTEND_INTERNAL_PORT=
+# FRONTEND_HOST_PORT=
+
+# Nginx (host-published ports)
+# NGINX_HTTP_PORT=
+# NGINX_HTTPS_PORT=
+
+# Nginx (inside container)
+# NGINX_INTERNAL_HTTP_PORT=
+```
+
+Compose は `PORT=$BACKEND_INTERNAL_PORT` と `PORT=$FRONTEND_INTERNAL_PORT` を各コンテナに渡します。未設定の場合は起動時にエラーとなります。
+
+### Backend app settings
+Backend 設定は環境変数から読み込みます（ポートは `.env` 必須）。Docker なしで単体起動する場合のみ `backend/.env` を使ってください。
+
 ```env
 DATABASE_URL=sqlite:///./app.db
 DEBUG=true
 HOST=0.0.0.0
-PORT=8000
-CORS_ORIGINS=http://localhost:3000,http://localhost:8080
+# CORS_ORIGINS は backend/.env で設定（例: ["http://localhost:3000"]）
 UPLOAD_DIR=uploads
 OUTPUT_DIR=output
 MAX_FILE_SIZE=10485760
@@ -248,7 +281,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ### Common Issues
 
 1. **WeasyPrint installation fails**: Ensure system dependencies are installed
-2. **Port conflicts**: Change ports in docker-compose.yml if needed
+2. **Port conflicts**: Change ports in the root `.env` (see Centralized Ports)
 3. **Permission issues**: Ensure Docker has proper permissions
 4. **File upload fails**: Check MAX_FILE_SIZE setting
 

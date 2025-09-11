@@ -27,6 +27,5 @@ RUN uv pip install --system '.[dev]'
 
 RUN mkdir -p uploads output
 
-EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Require PORT to be set at runtime; no defaults
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:?PORT not set} --reload"]
