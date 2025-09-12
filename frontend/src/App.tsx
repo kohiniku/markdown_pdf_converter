@@ -70,7 +70,7 @@ function App() {
 
       const response = await fetch('/convert', {
         method: 'POST',
-        body: formData,
+        body: (() => { formData.append('manual_breaks', 'true'); return formData; })(),
       });
 
       const data = await response.json();
@@ -160,6 +160,8 @@ function App() {
         if (pageSize) formData.append('page_size', pageSize);
         if (orientation) formData.append('orientation', orientation);
         if (slideMode) formData.append('slide_mode', 'true');
+        // Always enable manual page breaks so [[PAGEBREAK]] works in preview
+        formData.append('manual_breaks', 'true');
         const res = await fetch('/preview', { method: 'POST', body: formData });
         if (!res.ok) throw new Error('Failed to render preview');
         const html = await res.text();
@@ -251,7 +253,7 @@ function App() {
                       onChange={(e) => setSlideMode(e.target.checked)}
                     />
                     <span className="text-xs" style={{ color: 'var(--text)' }}>
-                      Insert page breaks at headings/hr
+                      Insert page breaks at headings/hr or [[PAGEBREAK]]
                     </span>
                   </div>
                 </label>

@@ -98,12 +98,29 @@ def render_markdown_to_html(
     orientation: Optional[str] = None,
     margin: Optional[str] = None,
     slide_mode: Optional[bool] = None,
+    manual_breaks: Optional[bool] = None,
+    break_phrases: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Return (html_document, css) where html_document is a full HTML page.
 
     The Markdown pipeline is tuned to approximate GROWI v7 rendering behavior
     (GFM-like lists, admonitions, tasklist, footnotes, tables, fences).
     """
+
+    # Manual page break keywords
+    use_manual = settings.manual_break_enabled_default if manual_breaks is None else bool(manual_breaks)
+    tokens = settings.manual_break_tokens.copy()
+    if break_phrases:
+        tokens = [t.strip() for t in break_phrases.split(",") if t.strip()]
+
+    # Always hide the reserved marker '[[PAGEBREAK]]' from output.
+    # - When manual breaks are enabled, replace it (and any configured tokens) with a
+    #   non-printing page-break element.
+    # - When disabled, strip the reserved marker so it never shows up in preview/PDF.
+    if use_manual:
+        markdown_text = _apply_manual_page_breaks(markdown_text, tokens)
+    else:
+        markdown_text = _strip_reserved_page_breaks(markdown_text)
 
     # Normalize GitHub-style callouts and :::admonitions into !!! admonitions
     # Also optionally collapse soft newlines inside admonition bodies if requested.
@@ -158,6 +175,60 @@ def render_markdown_to_html(
     )
     theme_css = custom_css if custom_css else get_theme_css()
     slide_css = _build_slide_css(bool(slide_mode))
+    preview_script = (
+        "<script>(function(){\n"
+        "function paginate(){\n"
+        "  var wrapper=document.querySelector('.gw-page-wrapper');\n"
+        "  if(!wrapper) return;\n"
+        "  var first=wrapper.querySelector('.gw-page');\n"
+        "  if(!first) return;\n"
+        "  var content=first.querySelector('.gw-container');\n"
+        "  if(!content) return;\n"
+        "  var nodes=Array.prototype.slice.call(content.childNodes);\n"
+        "  var pages=document.createElement('div');pages.className='gw-pages';\n"
+        "  wrapper.innerHTML='';wrapper.appendChild(pages);\n"
+        "  function makePage(){\n"
+        "    var outer=document.createElement('div');outer.className='gw-page-outer';\n"
+        "    var pg=document.createElement('article');pg.className='gw-page';\n"
+        "    var cont=document.createElement('div');cont.className='gw-container';\n"
+        "    pg.appendChild(cont);outer.appendChild(pg);pages.appendChild(outer);\n"
+        "    return {outer:outer, pg:pg, cont:cont};\n"
+        "  }\n"
+        "  var cur=makePage();\n"
+        "  function fits(){return cur.pg.scrollHeight <= cur.pg.clientHeight + 0.5;}\n"
+        "  for(var i=0;i<nodes.length;i++){\n"
+        "    var node=nodes[i];\n"
+        "    if(node.nodeType===1 && node.classList && node.classList.contains('gw-page-break')){\n"
+        "      if(cur.cont.childNodes.length===0) continue;\n"
+        "      cur=makePage();\n"
+        "      continue;\n"
+        "    }\n"
+        "    var toAdd=node.cloneNode(true);\n"
+        "    cur.cont.appendChild(toAdd);\n"
+        "    if(!fits()){\n"
+        "      cur.cont.removeChild(toAdd);\n"
+        "      cur=makePage();\n"
+        "      cur.cont.appendChild(toAdd);\n"
+        "    }\n"
+        "  }\n"
+        "}\n"
+        "function scalePages(){\n"
+        "  var wrapper=document.querySelector('.gw-page-wrapper');\n"
+        "  if(!wrapper) return;\n"
+        "  var root=document.documentElement;\n"
+        "  var cs=getComputedStyle(root);\n"
+        "  var pageWidth=parseFloat(cs.getPropertyValue('--page-width-px'))||794;\n"
+        "  var avail=wrapper.clientWidth - 32;\n"
+        "  var scale=1; if(pageWidth>0){ scale=Math.min(1, Math.max(0.35, avail/pageWidth)); }\n"
+        "  var list=wrapper.querySelectorAll('.gw-page-outer');\n"
+        "  for(var i=0;i<list.length;i++){ list[i].style.setProperty('--scale', String(scale)); }\n"
+        "}\n"
+        "function init(){paginate(); scalePages(); window.addEventListener('resize', scalePages);\n"
+        "  var imgs=document.images||[]; for(var k=0;k<imgs.length;k++){ imgs[k].addEventListener('load', function(){ paginate(); scalePages(); }); }\n"
+        "}\n"
+        "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', init);}else{init();}\n"
+        "})();</script>"
+    )
 
     html_doc = f"""
     <!DOCTYPE html>
@@ -173,6 +244,7 @@ def render_markdown_to_html(
             <div class=\"gw-container\">{html_body}</div>
           </article>
         </div>
+        {preview_script}
       </body>
     </html>
     """
@@ -242,6 +314,57 @@ def _build_slide_css(enabled: bool) -> str:
         ".gw-container h1, .gw-container h2{margin-top: 1.6em;}"
         "}"
     )
+
+
+def _apply_manual_page_breaks(md: str, tokens: list[str]) -> str:
+    if not md:
+        return md
+    # Reserved markers recognized regardless of configuration (case-insensitive)
+    # - '[[PAGEBREAK]]' is the new default marker
+    # - ':::pagebreak' kept for backward compatibility
+    reserved_markers = {"[[pagebreak]]", "[[PAGEBREAK]]", ":::pagebreak"}
+    tokset = {t.strip().lower() for t in tokens if t.strip()}
+    lines = md.splitlines()
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        raw = lines[i]
+        s = raw.strip()
+        lower = s.lower()
+        if lower in reserved_markers or lower in tokset:
+            # emit block-level HTML with blank lines around to ensure proper parsing
+            if out and out[-1] != "":
+                out.append("")
+            out.append('<div class="gw-page-break"></div>')
+            # skip consecutive markers
+            i += 1
+            # add a trailing blank line if next is not blank
+            if i < n and lines[i].strip() != "":
+                out.append("")
+            continue
+        out.append(raw)
+        i += 1
+    return "\n".join(out)
+
+
+def _strip_reserved_page_breaks(md: str) -> str:
+    """Remove reserved page break markers from the markdown so the raw token
+    never appears in preview/PDF when manual breaks are disabled.
+
+    Only strips when the marker is the sole content of a line (ignoring spaces).
+    """
+    if not md:
+        return md
+    reserved = {"[[pagebreak]]"}
+    lines = md.splitlines()
+    out: list[str] = []
+    for raw in lines:
+        if raw.strip().lower() in reserved:
+            # Skip the marker line entirely; keep structural blank lines implicit
+            continue
+        out.append(raw)
+    return "\n".join(out)
 
 
 def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:

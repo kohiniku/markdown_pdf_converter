@@ -16,14 +16,17 @@ html, body {
 
 /* Screen preview: page framing */
 @media screen {
-  .gw-page-wrapper { display: flex; justify-content: center; padding: 16px; }
+  .gw-page-wrapper { display: flex; justify-content: center; padding: 16px; overflow: auto; }
+  .gw-pages { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
+  .gw-page-outer { position: relative; width: calc(var(--page-width-px, 794px) * var(--scale, 1)); height: calc(var(--page-height-px, 1123px) * var(--scale, 1)); }
+  .gw-page-outer > .gw-page { position: absolute; top: 0; left: 0; transform: scale(var(--scale, 1)); transform-origin: top left; }
   .gw-page {
     background: #fff;
     color: var(--gw-fg);
     box-shadow: 0 4px 20px rgba(0,0,0,.12);
     border: 1px solid #e5e7eb;
     width: var(--page-width-px, 794px); /* fallback ~A4 portrait */
-    min-height: var(--page-height-px, 1123px);
+    height: var(--page-height-px, 1123px);
     padding: var(--page-margin, 12mm);
     box-sizing: border-box;
   }
@@ -127,4 +130,14 @@ hr { border: 0; height: 1px; background: var(--gw-border); margin: 1.25em 0; }
   tr, th, td { break-inside: avoid; }
   thead { display: table-header-group; }
   tfoot { display: table-footer-group; }
+}
+
+/* Manual page break marker */
+.gw-page-break { margin: 12px 0; }
+@media print {
+  .gw-page-break { break-after: page; page-break-after: always; }
+}
+@media screen {
+  /* Hidden in paginated preview (pages are split visually) */
+  .gw-page-break { display: none; }
 }

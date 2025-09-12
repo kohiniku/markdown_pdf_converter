@@ -164,3 +164,33 @@ def test_newline_as_space_inside_admonition():
     assert "Line one continues here" in visible
     # paragraph break preserved
     assert "New para" in visible
+
+
+def test_manual_page_break_with_reserved_directive():
+    md = "A\n\n[[PAGEBREAK]]\n\nB"
+    res = client.post("/preview", data={"markdown_content": md, "manual_breaks": "true"})
+    assert res.status_code == 200
+    html = res.text
+    assert 'class="gw-page-break"' in html
+
+
+def test_manual_page_break_with_custom_phrase():
+    md = "A\n\n<<PB>>\n\nB"
+    res = client.post(
+        "/preview",
+        data={
+            "markdown_content": md,
+            "manual_breaks": "true",
+            "break_phrases": "<<PB>>",
+        },
+    )
+    assert res.status_code == 200
+    html = res.text
+    assert 'class="gw-page-break"' in html
+    
+def test_reserved_marker_hidden_when_manual_breaks_disabled():
+    md = "A\n\n[[PAGEBREAK]]\n\nB"
+    res = client.post("/preview", data={"markdown_content": md})
+    assert res.status_code == 200
+    html = res.text
+    assert "[[PAGEBREAK]]" not in html
