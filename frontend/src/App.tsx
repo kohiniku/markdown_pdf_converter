@@ -29,6 +29,11 @@ function App() {
   const [pageSize, setPageSize] = useState<string>('A4');
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [slideMode, setSlideMode] = useState<boolean>(false);
+  // Title page settings
+  const [includeTitlePage, setIncludeTitlePage] = useState<boolean>(false);
+  const [titleText, setTitleText] = useState<string>("");
+  const [titleDate, setTitleDate] = useState<string>("");
+  const [titleName, setTitleName] = useState<string>("");
 
   // Initialize theme from localStorage or system preference
   useEffect(() => {
@@ -68,6 +73,12 @@ function App() {
       if (pageSize) formData.append('page_size', pageSize);
       if (orientation) formData.append('orientation', orientation);
       if (slideMode) formData.append('slide_mode', 'true');
+      if (includeTitlePage) {
+        formData.append('title_page', 'true');
+        if (titleText) formData.append('title_text', titleText);
+        if (titleDate) formData.append('title_date', titleDate);
+        if (titleName) formData.append('title_name', titleName);
+      }
 
       const response = await fetch('/convert', {
         method: 'POST',
@@ -161,6 +172,12 @@ function App() {
         if (pageSize) formData.append('page_size', pageSize);
         if (orientation) formData.append('orientation', orientation);
         if (slideMode) formData.append('slide_mode', 'true');
+        if (includeTitlePage) {
+          formData.append('title_page', 'true');
+          if (titleText) formData.append('title_text', titleText);
+          if (titleDate) formData.append('title_date', titleDate);
+          if (titleName) formData.append('title_name', titleName);
+        }
         // Always enable manual page breaks so [[PAGEBREAK]] works in preview
         formData.append('manual_breaks', 'true');
         const res = await fetch('/preview', { method: 'POST', body: formData });
@@ -261,7 +278,51 @@ function App() {
                     </span>
                   </div>
                 </label>
+                <label className="text-sm col-span-2" style={{ color: 'var(--muted)' }}>
+                  Title page (cover slide)
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={includeTitlePage}
+                      onChange={(e) => setIncludeTitlePage(e.target.checked)}
+                    />
+                    <span className="text-xs" style={{ color: 'var(--text)' }}>
+                      Prepend a centered title page to the PDF
+                    </span>
+                  </div>
+                </label>
               </div>
+              {includeTitlePage && (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <label className="text-sm col-span-2" style={{ color: 'var(--muted)' }}>
+                    Title
+                    <input
+                      className="input w-full mt-1"
+                      placeholder="My Presentation"
+                      value={titleText}
+                      onChange={(e) => setTitleText(e.target.value)}
+                    />
+                  </label>
+                  <label className="text-sm" style={{ color: 'var(--muted)' }}>
+                    Date
+                    <input
+                      className="input w-full mt-1"
+                      placeholder="2025-09-12"
+                      value={titleDate}
+                      onChange={(e) => setTitleDate(e.target.value)}
+                    />
+                  </label>
+                  <label className="text-sm" style={{ color: 'var(--muted)' }}>
+                    Name
+                    <input
+                      className="input w-full mt-1"
+                      placeholder="Your Name"
+                      value={titleName}
+                      onChange={(e) => setTitleName(e.target.value)}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
             {/* File Upload Area */}
             <div className="card">

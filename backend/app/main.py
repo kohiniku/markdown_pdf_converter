@@ -60,6 +60,11 @@ async def convert_markdown_to_pdf(
     slide_mode: Optional[bool] = Form(None),
     manual_breaks: Optional[bool] = Form(None),
     break_phrases: Optional[str] = Form(None),
+    # Title page options
+    title_page: Optional[bool] = Form(None),
+    title_text: Optional[str] = Form(None),
+    title_date: Optional[str] = Form(None),
+    title_name: Optional[str] = Form(None),
 ):
     try:
         if not markdown_content.strip():
@@ -82,6 +87,10 @@ async def convert_markdown_to_pdf(
             slide_mode=slide_mode,
             manual_breaks=manual_breaks,
             break_phrases=break_phrases,
+            title_page=title_page,
+            title_text=title_text,
+            title_date=title_date,
+            title_author=title_name,
         )
 
         file_id = str(uuid.uuid4())
@@ -122,6 +131,11 @@ async def preview_markdown(
     slide_mode: Optional[bool] = Form(None),
     manual_breaks: Optional[bool] = Form(None),
     break_phrases: Optional[str] = Form(None),
+    # Title page options
+    title_page: Optional[bool] = Form(None),
+    title_text: Optional[str] = Form(None),
+    title_date: Optional[str] = Form(None),
+    title_name: Optional[str] = Form(None),
 ):
     """Render Markdown to styled HTML for live preview."""
     try:
@@ -146,6 +160,10 @@ async def preview_markdown(
             slide_mode=slide_mode,
             manual_breaks=manual_breaks,
             break_phrases=break_phrases,
+            title_page=title_page,
+            title_text=title_text,
+            title_date=title_date,
+            title_author=title_name,
         )
 
         return Response(content=html_content, media_type="text/html")

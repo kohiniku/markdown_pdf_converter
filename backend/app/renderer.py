@@ -100,6 +100,11 @@ def render_markdown_to_html(
     slide_mode: Optional[bool] = None,
     manual_breaks: Optional[bool] = None,
     break_phrases: Optional[str] = None,
+    # Title page options (for slide/cover page)
+    title_page: Optional[bool] = None,
+    title_text: Optional[str] = None,
+    title_date: Optional[str] = None,
+    title_author: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Return (html_document, css) where html_document is a full HTML page.
 
@@ -159,6 +164,16 @@ def render_markdown_to_html(
 
     html_body = md.markdown(markdown_text, extensions=extensions, extension_configs=extension_configs)
 
+    # Optional title page block (cover slide). Insert before markdown body.
+    title_block = _build_title_page_html(
+        enabled=bool(title_page),
+        title=title_text or "",
+        date=title_date or "",
+        author=title_author or "",
+    )
+    if title_block:
+        html_body = title_block + html_body
+
     base_size = font_size_px if font_size_px is not None else settings.pdf_base_font_size
     base_css = f"body{{font-size:{base_size}px}}\n" if base_size else ""
 
@@ -175,6 +190,7 @@ def render_markdown_to_html(
     )
     theme_css = custom_css if custom_css else get_theme_css()
     slide_css = _build_slide_css(bool(slide_mode))
+    title_css = _build_title_css()
     preview_script = (
         "<script>(function(){\n"
         "var SRC_HTML=null;\n"
@@ -240,7 +256,7 @@ def render_markdown_to_html(
       <head>
         <meta charset=\"utf-8\" />
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-        <style>{base_css}{page_css}{page_vars_css}{slide_css}{theme_css}</style>
+        <style>{base_css}{page_css}{page_vars_css}{slide_css}{title_css}{theme_css}</style>
       </head>
       <body class=\"gw-screen\">
         <div class=\"gw-page-wrapper\">
@@ -253,6 +269,55 @@ def render_markdown_to_html(
     </html>
     """
     return html_doc, (base_css + theme_css)
+
+
+def _build_title_css() -> str:
+    """CSS for the generated title page block.
+
+    - Centers contents vertically on a single page in preview and print
+    - Forces a page break after the title block when printing
+    - Uses page var CSS custom properties for consistent sizing in preview
+    """
+    return (
+        ".gw-title-page{"
+        "min-height: calc(var(--page-height-px, 1123px) - (2 * var(--page-margin, 12mm)));"
+        "display:flex;align-items:center;justify-content:center;"
+        "text-align:center;padding:0 8mm;}"
+        ".gw-title-page .gw-title{font-size:5.0em;font-weight:800;margin:0;color:#111;}"
+        ".gw-title-page .gw-sub{margin-top:1.1em;color:#555;font-size:1.3em;line-height:1.6;display:inline-flex;gap:.8em;align-items:baseline;justify-content:center;flex-wrap:wrap;}"
+        ".gw-title-page .gw-sub > * + *::before{content:'\u00B7';margin:0 .25em;color:#99a1ad;}"
+        "@media (prefers-color-scheme: dark){.gw-title-page .gw-title{color:#e6e8ef;} .gw-title-page .gw-sub{color:#a0a7c1;} .gw-title-page .gw-sub > * + *::before{color:#5a648a;}}"
+        "@media print{.gw-title-page{break-after: page; page-break-after: always;}}"
+    )
+
+
+def _build_title_page_html(*, enabled: bool, title: str, date: str, author: str) -> str:
+    if not enabled:
+        return ""
+    # Render only if at least one field is provided
+    if not (title.strip() or date.strip() or author.strip()):
+        return ""
+    import html as _html
+    t = _html.escape(title.strip()) if title else ""
+    d = _html.escape(date.strip()) if date else ""
+    a = _html.escape(author.strip()) if author else ""
+
+    parts: list[str] = ["<section class=\"gw-title-page\">",
+                        "<div>"]
+    if t:
+        parts.append(f"<h1 class=\"gw-title\">{t}</h1>")
+    if d or a:
+        parts.append("<div class=\"gw-sub\">")
+        if d:
+            parts.append(f"<div class=\"gw-date\">{d}</div>")
+        if a:
+            parts.append(f"<div class=\"gw-author\">{a}</div>")
+        parts.append("</div>")
+    parts.append("</div></section>")
+
+    # No explicit gw-page-break needed in preview since min-height fills a page;
+    # print uses CSS break-after.
+    return "".join(parts)
 
 
 def _build_page_css(size: str, orientation: str, margin: str) -> str:
