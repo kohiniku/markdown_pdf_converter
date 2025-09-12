@@ -46,6 +46,27 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Arial, sans-serif;
 }
 
+/* Media should auto-fit within the page content box */
+.gw-container img,
+.gw-container svg,
+.gw-container video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+/* Always fit images to the page content width in preview/PDF */
+.gw-page .gw-container img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+}
+/* Ensure tall images don't exceed a single page's content height in preview/print */
+.gw-page .gw-container img,
+.gw-page .gw-container svg,
+.gw-page .gw-container video {
+  max-height: calc(var(--page-height-px, 1123px) - (2 * var(--page-margin, 12mm)));
+}
+
 p { margin: 0 0 1em; }
 a { color: var(--gw-link); text-decoration: none; }
 a:hover { text-decoration: underline; }

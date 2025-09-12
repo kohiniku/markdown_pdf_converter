@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
+from app.config import settings
 
 
 class PDFAdapter(Protocol):
@@ -25,8 +26,21 @@ class WeasyPrintAdapter:
             DummyAdapter().generate(html, output_path)
             return
 
+        # Rewrite app-served asset URLs ("/assets/<file>") to local file URLs so
+        # WeasyPrint can load images without knowing the server origin.
+        html = rewrite_asset_urls_for_pdf(html, Path(settings.upload_dir).resolve())
+
         pdf_document = weasyprint.HTML(string=html)
         pdf_document.write_pdf(str(output_path))
+
+
+def rewrite_asset_urls_for_pdf(html: str, uploads_dir: Path) -> str:
+    base = uploads_dir.as_posix().rstrip('/') + '/'
+    html = html.replace('src="/assets/', f'src="file://{base}')
+    html = html.replace("src='/assets/", f"src='file://{base}")
+    html = html.replace('href="/assets/', f'href="file://{base}')
+    html = html.replace("href='/assets/", f"href='file://{base}")
+    return html
 
 
 @dataclass

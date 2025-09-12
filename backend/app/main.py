@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 import os
 import tempfile
 from pathlib import Path
@@ -35,6 +36,11 @@ if settings.cors_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+upload_dir_path = Path(settings.upload_dir)
+upload_dir_path.mkdir(exist_ok=True)
+app.mount("/assets", StaticFiles(directory=str(upload_dir_path)), name="assets")
+
 
 @app.get("/")
 async def root():
@@ -171,6 +177,33 @@ async def upload_and_convert_file(
         raise HTTPException(status_code=400, detail="File must be UTF-8 encoded")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+
+ALLOWED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+
+@app.post("/upload-image")
+async def upload_image(file: UploadFile = File(...)):
+    try:
+        # Basic validation by extension; content validation is out-of-scope
+        ext = Path(file.filename).suffix.lower()
+        if ext not in ALLOWED_IMAGE_EXTS:
+            raise HTTPException(status_code=400, detail="Unsupported image format")
+
+        # Store with UUID to avoid collisions
+        uid = uuid.uuid4().hex
+        safe_name = f"{uid}{ext}"
+        dest = upload_dir_path / safe_name
+        content = await file.read()
+        if len(content) > settings.max_file_size:
+            raise HTTPException(status_code=413, detail="Image too large")
+        async with aiofiles.open(dest, 'wb') as out:
+            await out.write(content)
+
+        url = f"/assets/{safe_name}"
+        return {"success": True, "url": url, "filename": file.filename}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading image: {str(e)}")
 
 @app.get("/download/{filename}")
 async def download_pdf(filename: str):

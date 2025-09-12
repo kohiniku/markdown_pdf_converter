@@ -13,6 +13,7 @@ interface ConversionResult {
 function App() {
   const [markdownContent, setMarkdownContent] = useState('');
   const [filename, setFilename] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [cssStyles, setCssStyles] = useState('');
   // PDF base font size (px)
   const [fontSize, setFontSize] = useState<number>(13);
@@ -294,10 +295,52 @@ function App() {
             <div className="card">
               <h2 className="text-lg font-semibold mb-4">Markdown Content</h2>
               <textarea
+                ref={textareaRef}
                 value={markdownContent}
                 onChange={(e) => setMarkdownContent(e.target.value)}
                 placeholder="Enter your Markdown content here..."
                 className="input textarea w-full"
+                onDragOver={(e) => {
+                  // Allow dropping images into the editor
+                  if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+                }}
+                onDrop={async (e) => {
+                  if (!e.dataTransfer?.files?.length) return;
+                  const files = Array.from(e.dataTransfer.files);
+                  const img = files.find((f) => /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
+                  if (!img) return; // let non-image drops bubble (handled by outer dropzone)
+                  e.preventDefault();
+                  try {
+                    const fd = new FormData();
+                    fd.append('file', img);
+                    const res = await fetch('/upload-image', { method: 'POST', body: fd });
+                    if (!res.ok) throw new Error('Image upload failed');
+                    const data = await res.json();
+                    const url: string = data.url;
+                    // Insert Markdown image at caret/selection
+                    const el = textareaRef.current;
+                    const alt = img.name.replace(/\.[^.]+$/, '');
+                    const snippet = `![${alt}](${url})`;
+                    if (el) {
+                      const start = el.selectionStart || 0;
+                      const end = el.selectionEnd || 0;
+                      const before = markdownContent.slice(0, start);
+                      const after = markdownContent.slice(end);
+                      const needsBreakBefore = before && !before.endsWith('\n');
+                      const prefix = needsBreakBefore ? '\n' : '';
+                      const newText = `${before}${prefix}${snippet}\n${after}`;
+                      setMarkdownContent(newText);
+                      // Restore caret after inserted snippet
+                      const newPos = (before + prefix + snippet + '\n').length;
+                      setTimeout(() => { if (el) el.setSelectionRange(newPos, newPos); el?.focus(); }, 0);
+                    } else {
+                      setMarkdownContent((t) => (t ? t + `\n${snippet}\n` : snippet + '\n'));
+                    }
+                    setError('');
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Image drop failed');
+                  }
+                }}
               />
             </div>
 
