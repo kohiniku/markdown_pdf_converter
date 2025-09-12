@@ -51,6 +51,7 @@ async def convert_markdown_to_pdf(
     page_size: Optional[str] = Form(None),
     orientation: Optional[str] = Form(None),
     margin: Optional[str] = Form(None),
+    slide_mode: Optional[bool] = Form(None),
 ):
     try:
         if not markdown_content.strip():
@@ -70,6 +71,7 @@ async def convert_markdown_to_pdf(
             page_size=page_size,
             orientation=orientation,
             margin=margin,
+            slide_mode=slide_mode,
         )
 
         file_id = str(uuid.uuid4())
@@ -107,6 +109,7 @@ async def preview_markdown(
     page_size: Optional[str] = Form(None),
     orientation: Optional[str] = Form(None),
     margin: Optional[str] = Form(None),
+    slide_mode: Optional[bool] = Form(None),
 ):
     """Render Markdown to styled HTML for live preview."""
     try:
@@ -128,6 +131,7 @@ async def preview_markdown(
             page_size=page_size,
             orientation=orientation,
             margin=margin,
+            slide_mode=slide_mode,
         )
 
         return Response(content=html_content, media_type="text/html")
@@ -148,11 +152,10 @@ async def upload_and_convert_file(
         content = await file.read()
         markdown_content = content.decode('utf-8')
         
-        filename = file.filename.replace('.md', '.pdf')
-        
+        # Always let the server generate a new filename for PDFs
         return await convert_markdown_to_pdf(
             markdown_content=markdown_content,
-            filename=filename,
+            filename=None,
             css_styles=css_styles
         )
     

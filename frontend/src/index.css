@@ -4,7 +4,18 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+/* Light theme (default) */
 :root {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --text: #0f172a;
+  --primary: #4F8DF7;
+  --border: #e2e8f0;
+  --muted: #64748b;
+}
+
+/* Dark theme overrides (applies when .dark is set on a parent) */
+.dark {
   --background: #0B1020;
   --surface: #11162A;
   --text: #E6E8EF;

@@ -97,6 +97,7 @@ def render_markdown_to_html(
     page_size: Optional[str] = None,
     orientation: Optional[str] = None,
     margin: Optional[str] = None,
+    slide_mode: Optional[bool] = None,
 ) -> Tuple[str, str]:
     """Return (html_document, css) where html_document is a full HTML page.
 
@@ -105,11 +106,13 @@ def render_markdown_to_html(
     """
 
     # Normalize GitHub-style callouts and :::admonitions into !!! admonitions
-    markdown_text = _normalize_admonitions(markdown_text)
-
-    if (newline_to_space is True) or (
+    # Also optionally collapse soft newlines inside admonition bodies if requested.
+    _collapse = (newline_to_space is True) or (
         newline_to_space is None and settings.newline_as_space
-    ):
+    )
+    markdown_text = _normalize_admonitions(markdown_text, collapse_inside=_collapse)
+
+    if _collapse:
         markdown_text = collapse_soft_newlines(markdown_text)
 
     extensions = [
@@ -154,6 +157,7 @@ def render_markdown_to_html(
         margin or settings.pdf_page_margin_default,
     )
     theme_css = custom_css if custom_css else get_theme_css()
+    slide_css = _build_slide_css(bool(slide_mode))
 
     html_doc = f"""
     <!DOCTYPE html>
@@ -161,7 +165,7 @@ def render_markdown_to_html(
       <head>
         <meta charset=\"utf-8\" />
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-        <style>{base_css}{page_css}{page_vars_css}{theme_css}</style>
+        <style>{base_css}{page_css}{page_vars_css}{slide_css}{theme_css}</style>
       </head>
       <body class=\"gw-screen\">
         <div class=\"gw-page-wrapper\">
@@ -221,7 +225,26 @@ def _page_dimensions_mm(size: str) -> tuple[float, float]:
     return sizes.get(base, sizes["a4"])  # default A4
 
 
-def _normalize_admonitions(md: str) -> str:
+def _build_slide_css(enabled: bool) -> str:
+    if not enabled:
+        return ""
+    # Insert page breaks at good spots for slides: before h1/h2, after hr.
+    # Avoid breaking before the very first heading of each document.
+    return (
+        "@media print{"
+        "h1{page-break-before: always;break-before: page;}"
+        "h2{page-break-before: always;break-before: page;}"
+        "hr{page-break-after: always;break-after: page;}"
+        "h1:first-of-type{page-break-before: auto;break-before: auto;}"
+        "h2:first-of-type{page-break-before: auto;break-before: auto;}"
+        "}"
+        "@media screen{"
+        ".gw-container h1, .gw-container h2{margin-top: 1.6em;}"
+        "}"
+    )
+
+
+def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
     """Convert common admonition syntaxes to Python-Markdown's !!! form.
 
     Supports:
@@ -264,6 +287,10 @@ def _normalize_admonitions(md: str) -> str:
                 content.append(stripped)
                 i += 1
 
+            # Optionally collapse lines within admon content
+            if collapse_inside and content:
+                content = _collapse_inside_block(content)
+
             # Emit !!! admonition with indented content
             out.append(f"!!! {kind}")
             for c in content:
@@ -294,6 +321,8 @@ def _normalize_admonitions(md: str) -> str:
                 i += 1
 
             title_part = f' "{title}"' if title else ''
+            if collapse_inside and body:
+                body = _collapse_inside_block(body)
             out.append(f"!!! {typ}{title_part}")
             for b in body:
                 out.append(f"    {b}")
@@ -320,3 +349,14 @@ def _strip_admonition_title_leading_emoji(title: str | None) -> str | None:
             t = t[len(p):].lstrip(" -:|\t")
             break
     return t or None
+
+
+def _collapse_inside_block(lines: list[str]) -> list[str]:
+    """Collapse soft newlines within a block while preserving blank lines.
+
+    Uses the same rules as collapse_soft_newlines but operates on a list of lines
+    that are not yet indented (admonition body before indentation).
+    """
+    text = "\n".join(lines)
+    collapsed = collapse_soft_newlines(text)
+    return collapsed.splitlines()

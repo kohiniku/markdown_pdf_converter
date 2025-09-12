@@ -119,3 +119,48 @@ def test_triple_colon_warning_title_with_emoji_dedup():
     # CSS contains mapping for title ::before, not container ::before
     assert ".admonition.warning .admonition-title::before" in html
     assert ".admonition.warning::before" not in html
+
+
+def test_slide_mode_injects_css_rules():
+    md = "# A\n\nText\n\n## B\n\nMore"
+    res = client.post(
+        "/preview",
+        data={"markdown_content": md, "slide_mode": "true"},
+    )
+    assert res.status_code == 200
+    html = res.text
+    assert "page-break-before: always" in html or "break-before: page" in html
+
+
+def test_slide_mode_off_has_no_rules():
+    md = "# A\n\nText"
+    res = client.post(
+        "/preview",
+        data={"markdown_content": md},
+    )
+    assert res.status_code == 200
+    html = res.text
+    assert "page-break-before: always" not in html
+
+
+def test_newline_as_space_inside_admonition():
+    md = (
+        ":::note\n"
+        "Line one\n"
+        "continues here\n"
+        "\n"
+        "New para\n"
+        ":::\n"
+    )
+    res = client.post(
+        "/preview",
+        data={"markdown_content": md, "newline_to_space": "true"},
+    )
+    assert res.status_code == 200
+    html = res.text
+    # After </style>, look for collapsed line content in a single paragraph
+    cut = html.rfind("</style>")
+    visible = html[cut + len("</style>") :] if cut != -1 else html
+    assert "Line one continues here" in visible
+    # paragraph break preserved
+    assert "New para" in visible

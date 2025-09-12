@@ -115,3 +115,16 @@ hr { border: 0; height: 1px; background: var(--gw-border); margin: 1.25em 0; }
 .admonition.danger .admonition-title::before,
 .admonition.caution .admonition-title::before,
 .admonition.error .admonition-title::before { content: '⛔'; color: #e74c3c; }
+
+/* Print rules to reduce page-crossing of cohesive blocks */
+@media print {
+  /* Keep headings with the following content when possible */
+  h1, h2, h3 { break-after: avoid-page; page-break-after: avoid; }
+  p { orphans: 3; widows: 3; }
+  /* Don’t split within key blocks */
+  .admonition, pre, .codehilite, blockquote, table, figure, img { break-inside: avoid-page; page-break-inside: avoid; }
+  li { break-inside: avoid; }
+  tr, th, td { break-inside: avoid; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+}

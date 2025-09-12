@@ -27,6 +27,26 @@ function App() {
   // Page setup
   const [pageSize, setPageSize] = useState<string>('A4');
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [slideMode, setSlideMode] = useState<boolean>(false);
+
+  // Initialize theme from localStorage or system preference
+  useEffect(() => {
+    const saved = window.localStorage.getItem('theme');
+    if (saved === 'dark' || saved === 'light') {
+      setIsDarkMode(saved === 'dark');
+      return;
+    }
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setIsDarkMode(prefersDark);
+  }, []);
+
+  // Apply/remove .dark on <html> to activate CSS variable overrides
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDarkMode) root.classList.add('dark');
+    else root.classList.remove('dark');
+    window.localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
 
   const handleConvert = async () => {
     if (!markdownContent.trim()) {
@@ -41,11 +61,12 @@ function App() {
     try {
       const formData = new FormData();
       formData.append('markdown_content', markdownContent);
-      if (filename) formData.append('filename', filename);
+      // Do not send filename; server always generates a new unique name
       if (cssStyles) formData.append('css_styles', cssStyles);
       if (fontSize) formData.append('font_size', String(fontSize));
       if (pageSize) formData.append('page_size', pageSize);
       if (orientation) formData.append('orientation', orientation);
+      if (slideMode) formData.append('slide_mode', 'true');
 
       const response = await fetch('/convert', {
         method: 'POST',
@@ -138,6 +159,7 @@ function App() {
         if (fontSize) formData.append('font_size', String(fontSize));
         if (pageSize) formData.append('page_size', pageSize);
         if (orientation) formData.append('orientation', orientation);
+        if (slideMode) formData.append('slide_mode', 'true');
         const res = await fetch('/preview', { method: 'POST', body: formData });
         if (!res.ok) throw new Error('Failed to render preview');
         const html = await res.text();
@@ -151,10 +173,10 @@ function App() {
     return () => {
       if (previewTimer.current) window.clearTimeout(previewTimer.current);
     };
-  }, [markdownContent, fontSize, pageSize, orientation]);
+  }, [markdownContent, fontSize, pageSize, orientation, slideMode]);
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'dark' : ''}`} style={{ backgroundColor: 'var(--background)' }}>
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Header */}
         <header className="flex items-center justify-between mb-8">
@@ -219,6 +241,19 @@ function App() {
                     <option value="portrait">Portrait</option>
                     <option value="landscape">Landscape</option>
                   </select>
+                </label>
+                <label className="text-sm" style={{ color: 'var(--muted)' }}>
+                  Slide mode (auto page breaks)
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={slideMode}
+                      onChange={(e) => setSlideMode(e.target.checked)}
+                    />
+                    <span className="text-xs" style={{ color: 'var(--text)' }}>
+                      Insert page breaks at headings/hr
+                    </span>
+                  </div>
                 </label>
               </div>
             </div>
