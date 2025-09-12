@@ -83,8 +83,8 @@ ul.task-list { padding-left: 0; }
 .task-list-item input[type="checkbox"] { margin-right: .5em; }
 
 /* Admonitions */
-.admonition { border-left: 5px solid var(--gw-border); background: #f8fafc; border-radius: 6px; padding: .75em 1em; margin: 1em 0; position: relative; padding-left: 2.2em; }
-.admonition .admonition-title { font-weight: 600; margin-bottom: .35em; }
+.admonition { border-left: 5px solid var(--gw-border); background: #f8fafc; border-radius: 6px; padding: .75em 1em; margin: 1em 0; }
+.admonition .admonition-title { font-weight: 600; margin-bottom: .35em; display: flex; align-items: center; gap: .5em; }
 .admonition.note { border-color: #2f81f7; background: #eef5ff; }
 .admonition.info { border-color: #17a2b8; background: #e8f7fb; }
 .admonition.tip, .admonition.hint { border-color: #20c997; background: #e8fff6; }
@@ -99,14 +99,6 @@ ul.task-list { padding-left: 0; }
 /* Horizontal rule */
 hr { border: 0; height: 1px; background: var(--gw-border); margin: 1.25em 0; }
 
-/* Admonition Title: icon-only (hide text, show icon via ::before) */
-.admonition .admonition-title {
-  display: flex;
-  align-items: center;
-  gap: .5em;
-  /* Hide the text label visually while keeping the element */
-  font-size: 0;
-}
 .admonition .admonition-title::before {
   font-size: 1rem;
   line-height: 1;
@@ -114,21 +106,12 @@ hr { border: 0; height: 1px; background: var(--gw-border); margin: 1.25em 0; }
 }
 
 /* Icon mappings */
-.admonition.note .admonition-title::before, .admonition.note::before { content: '✎'; color: #2f81f7; }
-.admonition.info .admonition-title::before, .admonition.info::before { content: 'ℹ'; color: #17a2b8; }
-.admonition.tip .admonition-title::before, .admonition.tip::before,
-.admonition.hint .admonition-title::before, .admonition.hint::before { content: '💡'; color: #20c997; }
-.admonition.important .admonition-title::before, .admonition.important::before { content: '❗'; color: #e67e22; }
-.admonition.warning .admonition-title::before, .admonition.warning::before { content: '⚠'; color: #e67e22; }
-.admonition.danger .admonition-title::before, .admonition.danger::before,
-.admonition.caution .admonition-title::before, .admonition.caution::before,
-.admonition.error .admonition-title::before, .admonition.error::before { content: '⛔'; color: #e74c3c; }
-.admonition::before {
-  position: absolute;
-  left: .8em;
-  top: .95em;
-  font-size: 1rem;
-  line-height: 1;
-  font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", "Noto Emoji", system-ui, sans-serif;
-  content: '';
-}
+.admonition.note .admonition-title::before { content: '✎'; color: #2f81f7; }
+.admonition.info .admonition-title::before { content: 'ℹ'; color: #17a2b8; }
+.admonition.tip .admonition-title::before,
+.admonition.hint .admonition-title::before { content: '💡'; color: #20c997; }
+.admonition.important .admonition-title::before { content: '❗'; color: #e67e22; }
+.admonition.warning .admonition-title::before { content: '⚠'; color: #e67e22; }
+.admonition.danger .admonition-title::before,
+.admonition.caution .admonition-title::before,
+.admonition.error .admonition-title::before { content: '⛔'; color: #e74c3c; }
