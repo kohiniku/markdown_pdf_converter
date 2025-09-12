@@ -278,7 +278,8 @@ def _normalize_admonitions(md: str) -> str:
             if opener:
                 parts = opener.split(None, 1)
                 typ = parts[0].lower()
-                title = parts[1] if len(parts) > 1 else None
+                raw_title = parts[1] if len(parts) > 1 else None
+                title = _strip_admonition_title_leading_emoji(raw_title) if raw_title else None
             else:
                 typ = 'note'
                 title = None
@@ -303,3 +304,19 @@ def _normalize_admonitions(md: str) -> str:
         i += 1
 
     return "\n".join(out)
+
+
+def _strip_admonition_title_leading_emoji(title: str | None) -> str | None:
+    if not title:
+        return title
+    t = title.strip()
+    # Known emoji prefixes used in our CSS map or common aliases
+    prefixes = [
+        "⚠", "❗", "ℹ", "✎", "💡", "⛔",
+        ":warning:", ":info:", ":bulb:", ":pencil:", ":exclamation:", ":no_entry:",
+    ]
+    for p in prefixes:
+        if t.startswith(p):
+            t = t[len(p):].lstrip(" -:|\t")
+            break
+    return t or None

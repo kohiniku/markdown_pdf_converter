@@ -101,3 +101,21 @@ def test_triple_colon_admonition_note():
     assert res.status_code == 200
     html = res.text
     assert 'class="admonition note"' in html
+
+def test_triple_colon_warning_title_with_emoji_dedup():
+    md = (
+        ":::warning ⚠ Warning\n"
+        "Be careful\n"
+        ":::\n"
+    )
+    res = client.post("/preview", data={"markdown_content": md})
+    assert res.status_code == 200
+    html = res.text
+    # Consider only visible content (cut after </style>)
+    cut = html.rfind("</style>")
+    visible = html[cut + len("</style>") :] if cut != -1 else html
+    # Title text is present once (CSS provides the emoji icon)
+    assert visible.count(">Warning<") == 1
+    # CSS contains mapping for title ::before, not container ::before
+    assert ".admonition.warning .admonition-title::before" in html
+    assert ".admonition.warning::before" not in html
