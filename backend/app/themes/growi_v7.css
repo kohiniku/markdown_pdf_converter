@@ -106,6 +106,64 @@ ul.task-list { padding-left: 0; }
 .task-list-item { list-style: none; margin-left: 0; }
 .task-list-item input[type="checkbox"] { margin-right: .5em; }
 
+/* Print-friendly task list checkboxes (reliable in PDF) */
+@media print {
+  /* Normalize structure and spacing */
+  .task-list-item { position: relative; padding-left: 1.6em; }
+  .task-list-item input[type="checkbox"] {
+    position: absolute;
+    left: 0;
+    top: .2em;
+    width: 1.05em;
+    height: 1.05em;
+    margin: 0;
+    opacity: 0; /* hide native checkbox rendering in PDFs */
+  }
+
+  /* pymdownx.tasklist custom markup: <input> + <span class="task-list-indicator"> */
+  .task-list-item input[type="checkbox"] + .task-list-indicator::before {
+    content: ' ';
+    display: inline-block;
+    width: 1.05em;
+    height: 1.05em;
+    border: 2px solid var(--gw-border);
+    border-radius: 3px;
+    background: #fff;
+    vertical-align: -.2em;
+  }
+  .task-list-item input[type="checkbox"]:checked + .task-list-indicator::before {
+    content: '\2713'; /* ✓ */
+    color: #fff;
+    background: var(--gw-accent);
+    border-color: var(--gw-accent);
+    text-align: center;
+    line-height: 1.05em;
+    font-weight: 700;
+  }
+
+  /* GitHub-like markup fallback: <input class="task-list-item-checkbox"> + <label> */
+  .task-list-item input.task-list-item-checkbox + label::before {
+    content: ' ';
+    display: inline-block;
+    width: 1.05em;
+    height: 1.05em;
+    border: 2px solid var(--gw-border);
+    border-radius: 3px;
+    background: #fff;
+    margin-right: .5em;
+    vertical-align: -.2em;
+  }
+  .task-list-item input.task-list-item-checkbox:checked + label::before {
+    content: '\2713';
+    color: #fff;
+    background: var(--gw-accent);
+    border-color: var(--gw-accent);
+    text-align: center;
+    line-height: 1.05em;
+    font-weight: 700;
+  }
+}
+
 /* Admonitions */
 .admonition { border-left: 5px solid var(--gw-border); background: #f8fafc; border-radius: 6px; padding: .75em 1em; margin: 1em 0; }
 .admonition .admonition-title { font-weight: 600; margin-bottom: .35em; display: flex; align-items: center; gap: .5em; }
