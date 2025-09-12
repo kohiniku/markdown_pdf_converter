@@ -24,6 +24,9 @@ function App() {
   const [previewHtml, setPreviewHtml] = useState('');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const previewTimer = useRef<number | null>(null);
+  // Page setup
+  const [pageSize, setPageSize] = useState<string>('A4');
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
 
   const handleConvert = async () => {
     if (!markdownContent.trim()) {
@@ -41,6 +44,8 @@ function App() {
       if (filename) formData.append('filename', filename);
       if (cssStyles) formData.append('css_styles', cssStyles);
       if (fontSize) formData.append('font_size', String(fontSize));
+      if (pageSize) formData.append('page_size', pageSize);
+      if (orientation) formData.append('orientation', orientation);
 
       const response = await fetch('/convert', {
         method: 'POST',
@@ -131,6 +136,8 @@ function App() {
         const formData = new FormData();
         formData.append('markdown_content', markdownContent);
         if (fontSize) formData.append('font_size', String(fontSize));
+        if (pageSize) formData.append('page_size', pageSize);
+        if (orientation) formData.append('orientation', orientation);
         const res = await fetch('/preview', { method: 'POST', body: formData });
         if (!res.ok) throw new Error('Failed to render preview');
         const html = await res.text();
@@ -144,7 +151,7 @@ function App() {
     return () => {
       if (previewTimer.current) window.clearTimeout(previewTimer.current);
     };
-  }, [markdownContent, fontSize]);
+  }, [markdownContent, fontSize, pageSize, orientation]);
 
   return (
     <div className={`min-h-screen ${isDarkMode ? 'dark' : ''}`} style={{ backgroundColor: 'var(--background)' }}>
@@ -187,6 +194,33 @@ function App() {
                 className="w-full"
                 aria-label="Font size"
               />
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <label className="text-sm" style={{ color: 'var(--muted)' }}>
+                  Page size
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(e.target.value)}
+                    className="input w-full mt-1"
+                  >
+                    <option value="A3">A3</option>
+                    <option value="A4">A4</option>
+                    <option value="A5">A5</option>
+                    <option value="Letter">Letter</option>
+                    <option value="Legal">Legal</option>
+                  </select>
+                </label>
+                <label className="text-sm" style={{ color: 'var(--muted)' }}>
+                  Orientation
+                  <select
+                    value={orientation}
+                    onChange={(e) => setOrientation(e.target.value as 'portrait' | 'landscape')}
+                    className="input w-full mt-1"
+                  >
+                    <option value="portrait">Portrait</option>
+                    <option value="landscape">Landscape</option>
+                  </select>
+                </label>
+              </div>
             </div>
             {/* File Upload Area */}
             <div className="card">

@@ -124,4 +124,8 @@ def test_preview_emoji_off_removes_emoji():
     md = ":warning: 注意"
     response = client.post("/preview", data={"markdown_content": md, "emoji_mode": "off"})
     assert response.status_code == 200
-    assert "⚠" not in response.text
+    html = response.text
+    # Ignore icons defined inside inline <style>; check visible content only
+    cut = html.rfind("</style>")
+    visible = html[cut + len("</style>") :] if cut != -1 else html
+    assert "⚠" not in visible

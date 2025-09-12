@@ -1,0 +1,134 @@
+/* GROWI v7-like content styles (approximation) */
+:root {
+  --gw-fg: #24292f;
+  --gw-muted: #57606a;
+  --gw-bg: #ffffff;
+  --gw-surface: #fafbfc;
+  --gw-border: #d0d7de;
+  --gw-accent: #2f81f7;
+  --gw-link: #0969da;
+  --gw-code-bg: #f6f8fa;
+}
+
+html, body {
+  background: var(--gw-bg);
+}
+
+/* Screen preview: page framing */
+@media screen {
+  .gw-page-wrapper { display: flex; justify-content: center; padding: 16px; }
+  .gw-page {
+    background: #fff;
+    color: var(--gw-fg);
+    box-shadow: 0 4px 20px rgba(0,0,0,.12);
+    border: 1px solid #e5e7eb;
+    width: var(--page-width-px, 794px); /* fallback ~A4 portrait */
+    min-height: var(--page-height-px, 1123px);
+    padding: var(--page-margin, 12mm);
+    box-sizing: border-box;
+  }
+  /* Inside a page, avoid outer container max-width/padding interfering */
+  .gw-page .gw-container { max-width: none; padding: 0; }
+}
+
+.gw-container {
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 24px 28px;
+  max-width: 960px;
+  color: var(--gw-fg);
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Arial, sans-serif;
+}
+
+p { margin: 0 0 1em; }
+a { color: var(--gw-link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 { color: var(--gw-fg); margin: 1.4em 0 .6em; font-weight: 700; }
+h1 { font-size: 1.9em; padding-bottom: .3em; border-bottom: 1px solid var(--gw-border); }
+h2 { font-size: 1.6em; border-left: 4px solid var(--gw-accent); padding-left: .5em; }
+h3 { font-size: 1.3em; border-left: 3px solid var(--gw-border); padding-left: .5em; }
+h4 { font-size: 1.15em; }
+
+/* Heading anchor */
+.gw-heading-anchor { visibility: hidden; margin-left: .25em; text-decoration: none; color: var(--gw-muted); }
+h1:hover .gw-heading-anchor,
+h2:hover .gw-heading-anchor,
+h3:hover .gw-heading-anchor,
+h4:hover .gw-heading-anchor,
+h5:hover .gw-heading-anchor,
+h6:hover .gw-heading-anchor { visibility: visible; }
+
+/* Code */
+code { background: var(--gw-code-bg); padding: .15em .35em; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: .95em; }
+pre { background: var(--gw-code-bg); border: 1px solid var(--gw-border); border-radius: 6px; padding: 14px 16px; overflow: auto; }
+.codehilite { background: var(--gw-code-bg); border: 1px solid var(--gw-border); border-radius: 6px; padding: 12px; }
+
+/* Blockquote */
+blockquote { color: var(--gw-muted); border-left: 4px solid var(--gw-border); margin: 0 0 1em; padding: .5em .75em; background: var(--gw-surface); }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+th, td { border: 1px solid var(--gw-border); padding: .5em .6em; }
+th { background: #f3f4f6; text-align: left; }
+tr:nth-child(even) td { background: #fafafa; }
+
+/* Task list */
+ul.task-list { padding-left: 0; }
+.task-list-item { list-style: none; margin-left: 0; }
+.task-list-item input[type="checkbox"] { margin-right: .5em; }
+
+/* Admonitions */
+.admonition { border-left: 5px solid var(--gw-border); background: #f8fafc; border-radius: 6px; padding: .75em 1em; margin: 1em 0; position: relative; padding-left: 2.2em; }
+.admonition .admonition-title { font-weight: 600; margin-bottom: .35em; }
+.admonition.note { border-color: #2f81f7; background: #eef5ff; }
+.admonition.info { border-color: #17a2b8; background: #e8f7fb; }
+.admonition.tip, .admonition.hint { border-color: #20c997; background: #e8fff6; }
+.admonition.important { border-color: #e67e22; background: #fff4e5; }
+.admonition.warning { border-color: #e67e22; background: #fff4e5; }
+.admonition.danger, .admonition.caution, .admonition.error { border-color: #e74c3c; background: #ffecec; }
+
+/* Footnotes */
+.footnotes { font-size: .92em; color: var(--gw-muted); }
+.footnote-ref { text-decoration: none; }
+
+/* Horizontal rule */
+hr { border: 0; height: 1px; background: var(--gw-border); margin: 1.25em 0; }
+
+/* Admonition Title: icon-only (hide text, show icon via ::before) */
+.admonition .admonition-title {
+  display: flex;
+  align-items: center;
+  gap: .5em;
+  /* Hide the text label visually while keeping the element */
+  font-size: 0;
+}
+.admonition .admonition-title::before {
+  font-size: 1rem;
+  line-height: 1;
+  font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", "Noto Emoji", system-ui, sans-serif;
+}
+
+/* Icon mappings */
+.admonition.note .admonition-title::before, .admonition.note::before { content: '✎'; color: #2f81f7; }
+.admonition.info .admonition-title::before, .admonition.info::before { content: 'ℹ'; color: #17a2b8; }
+.admonition.tip .admonition-title::before, .admonition.tip::before,
+.admonition.hint .admonition-title::before, .admonition.hint::before { content: '💡'; color: #20c997; }
+.admonition.important .admonition-title::before, .admonition.important::before { content: '❗'; color: #e67e22; }
+.admonition.warning .admonition-title::before, .admonition.warning::before { content: '⚠'; color: #e67e22; }
+.admonition.danger .admonition-title::before, .admonition.danger::before,
+.admonition.caution .admonition-title::before, .admonition.caution::before,
+.admonition.error .admonition-title::before, .admonition.error::before { content: '⛔'; color: #e74c3c; }
+.admonition::before {
+  position: absolute;
+  left: .8em;
+  top: .95em;
+  font-size: 1rem;
+  line-height: 1;
+  font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", "Noto Emoji", system-ui, sans-serif;
+  content: '';
+}

@@ -3,8 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 import os
 import tempfile
-import markdown
-import weasyprint
 from pathlib import Path
 from typing import Optional
 import aiofiles
@@ -15,9 +13,11 @@ try:
 except Exception:
     emoji_lib = None
 
-from app.config import settings
+from app.config import settings, apply_proxy_settings
 from app.database import engine
 from app import models
+from app.renderer import render_markdown_to_html
+from app.pdf.adapter import get_adapter
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -47,7 +47,10 @@ async def convert_markdown_to_pdf(
     css_styles: Optional[str] = Form(None),
     emoji_mode: Optional[str] = Form("unicode"),
     newline_to_space: Optional[bool] = Form(None),
-    font_size: Optional[int] = Form(None)
+    font_size: Optional[int] = Form(None),
+    page_size: Optional[str] = Form(None),
+    orientation: Optional[str] = Form(None),
+    margin: Optional[str] = Form(None),
 ):
     try:
         if not markdown_content.strip():
@@ -59,133 +62,16 @@ async def convert_markdown_to_pdf(
                 markdown_content = emoji_lib.emojize(markdown_content, language='alias')
             elif mode in ("off", "disable", "disabled"):
                 markdown_content = emoji_lib.replace_emoji(markdown_content, replace='')
-
-        # `extra` を使わずに必要な拡張を個別指定（sane_lists を避け、GFMに近いリスト挙動を許可）
-        extensions = [
-            'admonition',          # !!! note/warning など
-            'abbr',                # *[HTML]: Hyper Text ...
-            'attr_list',           # {: .class }
-            'def_list',            # 定義リスト
-            'footnotes',
-            'tables',
-            'pymdownx.details',
-            'pymdownx.superfences', # Fenced code (拡張)
-            'pymdownx.tasklist',
-            'pymdownx.tilde',      # ~~strike~~
-            'pymdownx.mark',       # ==mark==
-            'pymdownx.betterem',
-            'pymdownx.magiclink',  # URL自動リンク
-            'codehilite',
-            'toc'
-        ]
-        extension_configs = {
-            'codehilite': {
-                'guess_lang': False,
-                'linenums': False
-            },
-            'pymdownx.tasklist': {
-                'custom_checkbox': True
-            },
-            'pymdownx.magiclink': {
-                'repo_url_shortener': True,
-                'hide_protocol': True
-            }
-        }
-
-        # Normalize newlines to spaces if requested or configured
-        if (newline_to_space is True) or (newline_to_space is None and settings.newline_as_space):
-            markdown_content = _collapse_soft_newlines(markdown_content)
-
-        html = markdown.markdown(
+        html_content, _ = render_markdown_to_html(
             markdown_content,
-            extensions=extensions,
-            extension_configs=extension_configs
+            newline_to_space=newline_to_space,
+            font_size_px=font_size,
+            custom_css=css_styles,
+            page_size=page_size,
+            orientation=orientation,
+            margin=margin,
         )
-        
-        default_css = """
-        body {
-            /* Prefer Japanese-capable fonts first */
-            font-family: 'Noto Sans CJK JP', 'Noto Sans JP', 'Noto Serif CJK JP', 'IPAexGothic', 'IPAGothic', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-        h1, h2, h3, h4, h5, h6 {
-            color: #2c3e50;
-            margin-top: 30px;
-            margin-bottom: 15px;
-        }
-        code {
-            background-color: #f4f4f4;
-            padding: 2px 4px;
-            border-radius: 3px;
-            font-family: 'JetBrains Mono', 'Fira Code', Menlo, Consolas, 'Liberation Mono', monospace;
-        }
-        pre {
-            background-color: #f8f8f8;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 15px;
-            overflow-x: auto;
-        }
-        blockquote {
-            border-left: 4px solid #3498db;
-            margin: 0;
-            padding-left: 20px;
-            font-style: italic;
-        }
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 20px 0;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        /* Admonitions (pymdown/admonition) */
-        .admonition { border-left: 4px solid #9aa4b2; padding: 12px 16px; background: #f9fafb; border-radius: 8px; margin: 16px 0; }
-        .admonition .admonition-title { font-weight: 600; margin-bottom: 8px; }
-        .admonition.note { border-color: #2e86de; background: #ecf5ff; }
-        .admonition.info { border-color: #17a2b8; background: #e8f7fb; }
-        .admonition.tip, .admonition.hint { border-color: #20c997; background: #e8fff6; }
-        .admonition.warning { border-color: #e67e22; background: #fff4e5; }
-        .admonition.danger, .admonition.caution, .admonition.error { border-color: #e74c3c; background: #ffecec; }
-        /* Task list */
-        ul.task-list { padding-left: 0; }
-        .task-list-item { list-style: none; margin-left: 0; }
-        .task-list-item input[type="checkbox"] { margin-right: 8px; transform: translateY(1px); }
-        /* CodeHilite */
-        .codehilite { background: #f8f8f8; border: 1px solid #ddd; border-radius: 6px; padding: 12px; overflow-x: auto; }
-        """
-        
-        # Base font-size override
-        base_size = font_size if font_size is not None else settings.pdf_base_font_size
-        base_css = f"body {{ font-size: {base_size}px; }}\n" if base_size else ""
 
-        final_css = (css_styles if css_styles else default_css)
-        
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>{base_css}{final_css}</style>
-        </head>
-        <body>
-            {html}
-        </body>
-        </html>
-        """
-        
         file_id = str(uuid.uuid4())
         output_filename = filename or f"converted_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         if not output_filename.endswith('.pdf'):
@@ -194,9 +80,8 @@ async def convert_markdown_to_pdf(
         output_dir = Path(settings.output_dir)
         output_dir.mkdir(exist_ok=True)
         output_path = output_dir / f"{file_id}_{output_filename}"
-        
-        pdf_document = weasyprint.HTML(string=html_content)
-        pdf_document.write_pdf(str(output_path))
+        adapter = get_adapter(settings.pdf_engine)
+        adapter.generate(html_content, output_path)
         
         return {
             "success": True,
@@ -218,7 +103,10 @@ async def preview_markdown(
     css_styles: Optional[str] = Form(None),
     emoji_mode: Optional[str] = Form("unicode"),
     newline_to_space: Optional[bool] = Form(None),
-    font_size: Optional[int] = Form(None)
+    font_size: Optional[int] = Form(None),
+    page_size: Optional[str] = Form(None),
+    orientation: Optional[str] = Form(None),
+    margin: Optional[str] = Form(None),
 ):
     """Render Markdown to styled HTML for live preview."""
     try:
@@ -232,124 +120,15 @@ async def preview_markdown(
                 markdown_content = emoji_lib.emojize(markdown_content, language='alias')
             elif mode in ("off", "disable", "disabled"):
                 markdown_content = emoji_lib.replace_emoji(markdown_content, replace='')
-
-        extensions = [
-            'admonition',
-            'abbr',
-            'attr_list',
-            'def_list',
-            'footnotes',
-            'tables',
-            'pymdownx.details',
-            'pymdownx.superfences',
-            'pymdownx.tasklist',
-            'pymdownx.tilde',
-            'pymdownx.mark',
-            'pymdownx.betterem',
-            'pymdownx.magiclink',
-            'codehilite',
-            'toc'
-        ]
-        extension_configs = {
-            'codehilite': {
-                'guess_lang': False,
-                'linenums': False
-            },
-            'pymdownx.tasklist': {
-                'custom_checkbox': True
-            },
-            'pymdownx.magiclink': {
-                'repo_url_shortener': True,
-                'hide_protocol': True
-            }
-        }
-
-        if (newline_to_space is True) or (newline_to_space is None and settings.newline_as_space):
-            markdown_content = _collapse_soft_newlines(markdown_content)
-
-        html = markdown.markdown(
+        html_content, _ = render_markdown_to_html(
             markdown_content,
-            extensions=extensions,
-            extension_configs=extension_configs
+            newline_to_space=newline_to_space,
+            font_size_px=font_size,
+            custom_css=css_styles,
+            page_size=page_size,
+            orientation=orientation,
+            margin=margin,
         )
-
-        default_css = """
-        body {
-            font-family: 'Noto Sans CJK JP', 'Noto Sans JP', 'Noto Serif CJK JP', 'IPAexGothic', 'IPAGothic', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-        h1, h2, h3, h4, h5, h6 {
-            color: #2c3e50;
-            margin-top: 30px;
-            margin-bottom: 15px;
-        }
-        code {
-            background-color: #f4f4f4;
-            padding: 2px 4px;
-            border-radius: 3px;
-        }
-        pre {
-            background-color: #f8f8f8;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 15px;
-            overflow-x: auto;
-        }
-        blockquote {
-            border-left: 4px solid #3498db;
-            margin: 0;
-            padding-left: 20px;
-            font-style: italic;
-        }
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 20px 0;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        .admonition { border-left: 4px solid #9aa4b2; padding: 12px 16px; background: #f9fafb; border-radius: 8px; margin: 16px 0; }
-        .admonition .admonition-title { font-weight: 600; margin-bottom: 8px; }
-        .admonition.note { border-color: #2e86de; background: #ecf5ff; }
-        .admonition.info { border-color: #17a2b8; background: #e8f7fb; }
-        .admonition.tip, .admonition.hint { border-color: #20c997; background: #e8fff6; }
-        .admonition.warning { border-color: #e67e22; background: #fff4e5; }
-        .admonition.danger, .admonition.caution, .admonition.error { border-color: #e74c3c; background: #ffecec; }
-        ul.task-list { padding-left: 0; }
-        .task-list-item { list-style: none; margin-left: 0; }
-        .task-list-item input[type=\"checkbox\"] { margin-right: 8px; transform: translateY(1px); }
-        .codehilite { background: #f8f8f8; border: 1px solid #ddd; border-radius: 6px; padding: 12px; overflow-x: auto; }
-        """
-
-        base_size = font_size if font_size is not None else settings.pdf_base_font_size
-        base_css = f"body {{ font-size: {base_size}px; }}\n" if base_size else ""
-        final_css = (css_styles if css_styles else default_css)
-
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset=\"utf-8\">
-            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-            <style>{base_css}{final_css}</style>
-        </head>
-        <body>
-            {html}
-        </body>
-        </html>
-        """
 
         return Response(content=html_content, media_type="text/html")
     except HTTPException:
@@ -462,3 +241,7 @@ def _collapse_soft_newlines(md: str) -> str:
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+# Apply proxy settings as early as possible after app is created
+if settings.apply_proxy_on_startup:
+    apply_proxy_settings()
