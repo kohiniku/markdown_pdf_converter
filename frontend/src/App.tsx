@@ -251,6 +251,9 @@ function App() {
                     <input
                       type="checkbox"
                       checked={slideMode}
+
+
+                      
                       onChange={(e) => setSlideMode(e.target.checked)}
                     />
                     <span className="text-xs" style={{ color: 'var(--text)' }}>

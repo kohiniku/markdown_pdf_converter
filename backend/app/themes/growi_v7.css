@@ -55,10 +55,10 @@ html, body {
   height: auto;
 }
 /* Always fit images to the page content width in preview/PDF */
+/* Allow width to be controlled from Markdown (attr_list), but never overflow page */
 .gw-page .gw-container img {
-  width: 100% !important;
-  max-width: 100% !important;
-  height: auto !important;
+  max-width: 100%;
+  height: auto;
 }
 /* Ensure tall images don't exceed a single page's content height in preview/print */
 .gw-page .gw-container img,
