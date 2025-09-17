@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from html import escape as _escape
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Optional, Tuple
+
+import re
 
 import markdown as md
 
@@ -174,23 +178,33 @@ def render_markdown_to_html(
     if title_block:
         html_body = title_block + html_body
 
+    html_body = _normalize_image_widths(html_body)
+
     base_size = font_size_px if font_size_px is not None else settings.pdf_base_font_size
     base_css = f"body{{font-size:{base_size}px}}\n" if base_size else ""
 
+    resolved_page_size = page_size or settings.pdf_page_size_default
+    resolved_orientation = orientation or settings.pdf_page_orientation_default
+    resolved_margin = margin or settings.pdf_page_margin_default
+
     # Page setup CSS (@page)
     page_css = _build_page_css(
-        page_size or settings.pdf_page_size_default,
-        orientation or settings.pdf_page_orientation_default,
-        margin or settings.pdf_page_margin_default,
+        resolved_page_size,
+        resolved_orientation,
+        resolved_margin,
     )
     page_vars_css = _build_page_vars_css(
-        page_size or settings.pdf_page_size_default,
-        orientation or settings.pdf_page_orientation_default,
-        margin or settings.pdf_page_margin_default,
+        resolved_page_size,
+        resolved_orientation,
+        resolved_margin,
     )
     theme_css = custom_css if custom_css else get_theme_css()
     slide_css = _build_slide_css(bool(slide_mode))
-    title_css = _build_title_css()
+    title_css = _build_title_css(
+        resolved_page_size,
+        resolved_orientation,
+        resolved_margin,
+    )
     preview_script = (
         "<script>(function(){\n"
         "var SRC_HTML=null;\n"
@@ -271,23 +285,53 @@ def render_markdown_to_html(
     return html_doc, (base_css + theme_css)
 
 
-def _build_title_css() -> str:
+def _build_title_css(size: str, orientation: str, margin: str) -> str:
     """CSS for the generated title page block.
 
     - Centers contents vertically on a single page in preview and print
     - Forces a page break after the title block when printing
     - Uses page var CSS custom properties for consistent sizing in preview
     """
+    margin_spec = margin.strip() if margin else settings.pdf_page_margin_default
+    margin_top, _, margin_bottom, _ = _expand_margin_shorthand(margin_spec)
+
+    page_width_mm, page_height_mm = _page_dimensions_mm(size)
+    orient = (orientation or "portrait").strip().lower()
+    if orient == "landscape":
+        page_width_mm, page_height_mm = page_height_mm, page_width_mm
+
+    page_height_px = _mm_to_px(page_height_mm)
+
+    default_top, _, default_bottom, _ = _expand_margin_shorthand(settings.pdf_page_margin_default)
+    margin_top_px = _css_length_to_px(margin_top)
+    margin_bottom_px = _css_length_to_px(margin_bottom)
+    if margin_top_px is None:
+        margin_top_px = _css_length_to_px(default_top) or 0
+    if margin_bottom_px is None:
+        margin_bottom_px = _css_length_to_px(default_bottom) or 0
+
+    total_margin_px = int(round(margin_top_px + margin_bottom_px))
+    available_height_px = max(page_height_px - total_margin_px, 0)
+    screen_min_height = (
+        "calc(var(--page-height-px, "
+        f"{page_height_px}px) - (var(--page-margin-top, {margin_top}) + var(--page-margin-bottom, {margin_bottom})))"
+    )
+
     return (
         ".gw-title-page{"
-        "min-height: calc(var(--page-height-px, 1123px) - (2 * var(--page-margin, 12mm)));"
+        f"min-height:{available_height_px}px;"
         "display:flex;align-items:center;justify-content:center;"
         "text-align:center;padding:0 8mm;}"
+        "@media screen{.gw-title-page{"
+        f"min-height:{screen_min_height};"
+        "}}"
+        "@media print{.gw-title-page{"
+        f"min-height:{available_height_px}px;height:{available_height_px}px;"
+        "break-after: page;page-break-after: always;}}"
         ".gw-title-page .gw-title{font-size:5.0em;font-weight:800;margin:0;color:#111;}"
         ".gw-title-page .gw-sub{margin-top:1.1em;color:#555;font-size:1.3em;line-height:1.6;display:inline-flex;gap:.8em;align-items:baseline;justify-content:center;flex-wrap:wrap;}"
         ".gw-title-page .gw-sub > * + *::before{content:'\u00B7';margin:0 .25em;color:#99a1ad;}"
         "@media (prefers-color-scheme: dark){.gw-title-page .gw-title{color:#e6e8ef;} .gw-title-page .gw-sub{color:#a0a7c1;} .gw-title-page .gw-sub > * + *::before{color:#5a648a;}}"
-        "@media print{.gw-title-page{break-after: page; page-break-after: always;}}"
     )
 
 
@@ -341,14 +385,21 @@ def _build_page_vars_css(size: str, orientation: str, margin: str) -> str:
     if orient == "landscape":
         w_mm, h_mm = h_mm, w_mm
 
-    # Convert to px using 96 dpi: 1in=96px, 1in=25.4mm
-    def mm_to_px(mm: float) -> int:
-        return int(round(mm / 25.4 * 96))
-
-    w_px = mm_to_px(w_mm)
-    h_px = mm_to_px(h_mm)
+    w_px = _mm_to_px(w_mm)
+    h_px = _mm_to_px(h_mm)
     margin_spec = margin.strip() if margin else settings.pdf_page_margin_default
-    return f":root{{--page-width-px:{w_px}px;--page-height-px:{h_px}px;--page-margin:{margin_spec};}}\n"
+    margin_top, margin_right, margin_bottom, margin_left = _expand_margin_shorthand(margin_spec)
+    return (
+        ":root{"
+        f"--page-width-px:{w_px}px;"
+        f"--page-height-px:{h_px}px;"
+        f"--page-margin:{margin_spec};"
+        f"--page-margin-top:{margin_top};"
+        f"--page-margin-right:{margin_right};"
+        f"--page-margin-bottom:{margin_bottom};"
+        f"--page-margin-left:{margin_left};"
+        "}\n"
+    )
 
 
 def _page_dimensions_mm(size: str) -> tuple[float, float]:
@@ -364,6 +415,50 @@ def _page_dimensions_mm(size: str) -> tuple[float, float]:
     # Support combined forms like "A4 landscape" by stripping the word
     base = s.replace("landscape", "").replace("portrait", "").strip()
     return sizes.get(base, sizes["a4"])  # default A4
+
+
+def _mm_to_px(mm: float) -> int:
+    return int(round(mm / 25.4 * 96))
+
+
+def _expand_margin_shorthand(margin: str) -> tuple[str, str, str, str]:
+    parts = [p for p in margin.split() if p]
+    if not parts:
+        return ("0", "0", "0", "0")
+    if len(parts) == 1:
+        return (parts[0], parts[0], parts[0], parts[0])
+    if len(parts) == 2:
+        return (parts[0], parts[1], parts[0], parts[1])
+    if len(parts) == 3:
+        return (parts[0], parts[1], parts[2], parts[1])
+    return (parts[0], parts[1], parts[2], parts[3])
+
+
+def _css_length_to_px(value: Optional[str]) -> Optional[float]:
+    if value is None:
+        return None
+    raw = value.strip()
+    if not raw:
+        return None
+    lower = raw.lower()
+    try:
+        if lower.endswith("mm"):
+            return float(_mm_to_px(float(lower[:-2])))
+        if lower.endswith("cm"):
+            return float(_mm_to_px(float(lower[:-2]) * 10))
+        if lower.endswith("in"):
+            return float(lower[:-2]) * 96.0
+        if lower.endswith("px"):
+            return float(lower[:-2])
+        if lower.endswith("pt"):
+            return float(lower[:-2]) * (96.0 / 72.0)
+        if lower.endswith("pc"):
+            return float(lower[:-2]) * 12.0 * (96.0 / 72.0)
+        if re.fullmatch(r"[0-9]*\.?[0-9]+", lower):
+            return float(lower)
+    except ValueError:
+        return None
+    return None
 
 
 def _build_slide_css(enabled: bool) -> str:
@@ -434,6 +529,152 @@ def _strip_reserved_page_breaks(md: str) -> str:
             continue
         out.append(raw)
     return "\n".join(out)
+
+
+def _normalize_image_widths(html_fragment: str) -> str:
+    if not html_fragment or "<img" not in html_fragment.lower():
+        return html_fragment
+    parser = _ImageWidthNormalizer()
+    parser.feed(html_fragment)
+    parser.close()
+    return parser.get_html()
+
+
+class _ImageWidthNormalizer(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self._chunks: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+        self._chunks.append(self._serialize_start(tag, attrs, False))
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+        self._chunks.append(self._serialize_start(tag, attrs, True))
+
+    def handle_endtag(self, tag: str) -> None:
+        self._chunks.append(f"</{tag}>")
+
+    def handle_data(self, data: str) -> None:
+        self._chunks.append(data)
+
+    def handle_entityref(self, name: str) -> None:
+        self._chunks.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self._chunks.append(f"&#{name};")
+
+    def handle_comment(self, data: str) -> None:
+        self._chunks.append(f"<!--{data}-->")
+
+    def handle_decl(self, decl: str) -> None:
+        self._chunks.append(f"<!{decl}>")
+
+    def unknown_decl(self, data: str) -> None:  # pragma: no cover - rare
+        self._chunks.append(f"<![{data}]>")
+
+    def handle_pi(self, data: str) -> None:  # pragma: no cover - rare
+        self._chunks.append(f"<?{data}>")
+
+    def error(self, message: str) -> None:  # pragma: no cover - compatibility hook
+        return
+
+    def get_html(self) -> str:
+        return "".join(self._chunks)
+
+    def _serialize_start(
+        self, tag: str, attrs: list[tuple[str, Optional[str]]], self_closing: bool
+    ) -> str:
+        normalized_attrs = _normalize_img_attrs(tag, attrs)
+        attr_chunks: list[str] = []
+        for name, value in normalized_attrs:
+            if value is None:
+                attr_chunks.append(f" {name}")
+            else:
+                attr_chunks.append(f" {name}={_quote_attr(value)}")
+        closing = " /" if self_closing else ""
+        return f"<{tag}{''.join(attr_chunks)}{closing}>"
+
+
+def _normalize_img_attrs(
+    tag: str, attrs: list[tuple[str, Optional[str]]]
+) -> list[tuple[str, Optional[str]]]:
+    if tag.lower() != "img":
+        return attrs
+
+    width_value: Optional[str] = None
+    style_value: Optional[str] = None
+    for name, value in attrs:
+        lower = name.lower()
+        if lower == "width" and value is not None:
+            width_value = value
+        elif lower == "style" and value is not None:
+            style_value = value
+
+    css_width = _normalize_width_value(width_value)
+    if not css_width:
+        return attrs
+
+    style_merged = _merge_style_declarations(style_value, f"width:{css_width};")
+    updated: list[tuple[str, Optional[str]]] = []
+    style_applied = False
+    for name, value in attrs:
+        if name.lower() == "style":
+            updated.append((name, style_merged))
+            style_applied = True
+        else:
+            updated.append((name, value))
+    if not style_applied:
+        updated.append(("style", style_merged))
+    return updated
+
+
+def _normalize_width_value(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    value = raw.strip()
+    if not value:
+        return None
+    lower = value.lower()
+    if lower in {"auto", "initial", "inherit"}:
+        return None
+    allowed_units = (
+        "px",
+        "%",
+        "em",
+        "rem",
+        "vw",
+        "vh",
+        "vmin",
+        "vmax",
+        "cm",
+        "mm",
+        "in",
+        "pt",
+    )
+    for unit in allowed_units:
+        if lower.endswith(unit):
+            return value
+    if re.fullmatch(r"[0-9]*\.?[0-9]+", lower):
+        return f"{lower}px"
+    return None
+
+
+def _merge_style_declarations(existing: Optional[str], addition: str) -> str:
+    base = (existing or "").strip()
+    if base:
+        base = re.sub(r"(?i)\bwidth\s*:[^;]+;?", "", base).strip()
+        if base and not base.endswith(";"):
+            base += ";"
+    addition = addition.strip()
+    if not addition.endswith(";"):
+        addition += ";"
+    if base:
+        return f"{base} {addition}".strip()
+    return addition
+
+
+def _quote_attr(value: str) -> str:
+    return f'"{_escape(value, quote=True)}"'
 
 
 def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:

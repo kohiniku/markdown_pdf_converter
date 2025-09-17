@@ -1,0 +1,54 @@
+import re
+
+from app import renderer
+
+
+def test_title_page_print_min_height_matches_available_area():
+    html, _ = renderer.render_markdown_to_html(
+        "",
+        title_page=True,
+        title_text="Sample",
+    )
+
+    match = re.search(
+        r"@media print\{\.gw-title-page\{min-height:([0-9]+)px;height:\1px;", html
+    )
+    assert match, "Expected numeric min-height and height declarations for print title page"
+
+    expected_height = _expected_available_height_px()
+    assert int(match.group(1)) == expected_height
+
+
+def test_image_width_attribute_is_reflected_in_style():
+    html, _ = renderer.render_markdown_to_html(
+        "![img](/assets/picture.png){width=200}\n",
+        title_page=False,
+    )
+    assert "width=\"200\"" in html
+    assert re.search(r"style=\"[^\"]*width:200px;", html)
+
+
+def test_image_width_with_percentage_is_preserved():
+    html, _ = renderer.render_markdown_to_html(
+        "![img](/assets/picture.png){width=50%}\n",
+        title_page=False,
+    )
+    assert re.search(r"style=\"[^\"]*width:50%;", html)
+
+
+def _expected_available_height_px() -> int:
+    page_size = renderer.settings.pdf_page_size_default
+    orientation = renderer.settings.pdf_page_orientation_default
+    margin = renderer.settings.pdf_page_margin_default
+
+    width_mm, height_mm = renderer._page_dimensions_mm(page_size)
+    if (orientation or "portrait").strip().lower() == "landscape":
+        width_mm, height_mm = height_mm, width_mm
+
+    page_height_px = renderer._mm_to_px(height_mm)
+    top, _, bottom, _ = renderer._expand_margin_shorthand(margin)
+
+    top_px = renderer._css_length_to_px(top) or 0
+    bottom_px = renderer._css_length_to_px(bottom) or 0
+
+    return max(page_height_px - int(round(top_px + bottom_px)), 0)
