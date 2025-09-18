@@ -198,6 +198,47 @@ def _build_font_face_css(font_regular: Path, font_bold: Path) -> str:
     return "".join(parts)
 
 
+_RE_FONT_OPEN = re.compile(r"<font\b([^>]*)>", re.IGNORECASE)
+_RE_FONT_CLOSE = re.compile(r"</font>", re.IGNORECASE)
+_RE_ATTR = re.compile(r"(\w+)\s*=\s*(\".*?\"|'.*?'|[^\s>]+)")
+
+
+def _convert_deprecated_font_tags(html_fragment: str) -> str:
+    if "<font" not in html_fragment.lower():
+        return html_fragment
+
+    def repl(match: re.Match[str]) -> str:
+        raw_attrs = match.group(1)
+        attrs = []
+        style_parts: list[str] = []
+        color_value: Optional[str] = None
+        for attr_match in _RE_ATTR.finditer(raw_attrs):
+            name = attr_match.group(1).strip()
+            value = attr_match.group(2).strip()
+            lower_name = name.lower()
+            if lower_name == "color":
+                color_value = value.strip("'\"")
+                continue
+            if lower_name == "style":
+                style_parts.append(value.strip("'\""))
+                continue
+            attrs.append(f"{name}={value}")
+
+        if color_value:
+            style_parts.append(f"color:{color_value}")
+        if style_parts:
+            attrs.append(f'style="{";".join(style_parts)}"')
+
+        attr_str = " ".join(attrs).strip()
+        if attr_str:
+            return f"<span {attr_str}>"
+        return "<span>"
+
+    html_fragment = _RE_FONT_OPEN.sub(repl, html_fragment)
+    html_fragment = _RE_FONT_CLOSE.sub("</span>", html_fragment)
+    return html_fragment
+
+
 def _ensure_block_spacing(md: str) -> str:
     if not md:
         return md
@@ -365,6 +406,7 @@ def render_markdown_to_html(
     }
 
     html_body = md.markdown(markdown_text, extensions=extensions, extension_configs=extension_configs)
+    html_body = _convert_deprecated_font_tags(html_body)
 
     # Optional title page block (cover slide). Insert before markdown body.
     title_block = _build_title_page_html(
@@ -427,11 +469,128 @@ def render_markdown_to_html(
         "  }\n"
         "  var cur=makePage();\n"
         "  function fits(){return cur.pg.scrollHeight <= cur.pg.clientHeight + 0.5;}\n"
+        "  function copyAttributes(src,dest){\n"
+        "    if(!src||!src.attributes) return;\n"
+        "    for(var i=0;i<src.attributes.length;i++){ var attr=src.attributes[i]; dest.setAttribute(attr.name, attr.value); }\n"
+        "  }\n"
+        "  function createTableShell(table){\n"
+        "    var shell=table.cloneNode(false);\n"
+        "    var child=table.firstElementChild;\n"
+        "    var colgroups=[];\n"
+        "    while(child){\n"
+        "      if(child.tagName==='COLGROUP'){ colgroups.push(child); }\n"
+        "      child=child.nextElementSibling;\n"
+        "    }\n"
+        "    for(var i=0;i<colgroups.length;i++){ shell.appendChild(colgroups[i].cloneNode(true)); }\n"
+        "    if(table.tHead){ shell.appendChild(table.tHead.cloneNode(true)); }\n"
+        "    var currentBody=null;\n"
+        "    var currentTemplate=null;\n"
+        "    var lastRow=null;\n"
+        "    var footerNode=null;\n"
+        "    return {\n"
+        "      table:shell,\n"
+        "      ensureBody:function(template){\n"
+        "        if(!currentBody || (template && template!==currentTemplate)){\n"
+        "          currentBody=document.createElement('tbody');\n"
+        "          if(template && template.tagName==='TBODY'){ copyAttributes(template,currentBody); }\n"
+        "          shell.appendChild(currentBody);\n"
+        "          currentTemplate=template;\n"
+        "        }\n"
+        "      },\n"
+        "      appendRow:function(row,template){\n"
+        "        this.ensureBody(template);\n"
+        "        currentBody.appendChild(row);\n"
+        "        lastRow=row;\n"
+        "      },\n"
+        "      removeLastRow:function(){\n"
+        "        if(lastRow && currentBody && lastRow.parentNode===currentBody){\n"
+        "          currentBody.removeChild(lastRow);\n"
+        "          if(!currentBody.childElementCount){\n"
+        "            shell.removeChild(currentBody);\n"
+        "            currentBody=null;\n"
+        "            currentTemplate=null;\n"
+        "          }\n"
+        "        }\n"
+        "        lastRow=null;\n"
+        "      },\n"
+        "      appendFooter:function(node){\n"
+        "        if(footerNode && footerNode.parentNode===shell){ shell.removeChild(footerNode); }\n"
+        "        footerNode=node;\n"
+        "        if(footerNode){ shell.appendChild(footerNode); }\n"
+        "      },\n"
+        "      removeFooter:function(){\n"
+        "        if(footerNode && footerNode.parentNode===shell){ shell.removeChild(footerNode); }\n"
+        "        footerNode=null;\n"
+        "      },\n"
+        "      hasBody:function(){ return !!currentBody; }\n"
+        "    };\n"
+        "  }\n"
+        "  function paginateTable(table){\n"
+        "    if(!table || !table.tBodies || !table.tBodies.length){\n"
+        "      var clone=table.cloneNode(true);\n"
+        "      cur.cont.appendChild(clone);\n"
+        "      if(!fits()){\n"
+        "        cur.cont.removeChild(clone);\n"
+        "        cur=makePage();\n"
+        "        cur.cont.appendChild(clone);\n"
+        "      }\n"
+        "      return;\n"
+        "    }\n"
+        "    var foot=table.tFoot ? table.tFoot.cloneNode(true) : null;\n"
+        "    var sections=[];\n"
+        "    for(var b=0;b<table.tBodies.length;b++){\n"
+        "      var body=table.tBodies[b];\n"
+        "      var rows=Array.prototype.slice.call(body.rows||[]);\n"
+        "      if(!rows.length) continue;\n"
+        "      for(var r=0;r<rows.length;r++){\n"
+        "        sections.push({row: rows[r].cloneNode(true), template: body});\n"
+        "      }\n"
+        "    }\n"
+        "    if(!sections.length){\n"
+        "      var emptyClone=table.cloneNode(true);\n"
+        "      cur.cont.appendChild(emptyClone);\n"
+        "      if(!fits()){\n"
+        "        cur.cont.removeChild(emptyClone);\n"
+        "        cur=makePage();\n"
+        "        cur.cont.appendChild(emptyClone);\n"
+        "      }\n"
+        "      return;\n"
+        "    }\n"
+        "    function newShell(){\n"
+        "      var shell=createTableShell(table);\n"
+        "      cur.cont.appendChild(shell.table);\n"
+        "      return shell;\n"
+        "    }\n"
+        "    var shell=newShell();\n"
+        "    for(var s=0;s<sections.length;s++){\n"
+        "      var spec=sections[s];\n"
+        "      shell.appendRow(spec.row, spec.template);\n"
+        "      if(!fits()){\n"
+        "        shell.removeLastRow();\n"
+        "        cur=makePage();\n"
+        "        shell=newShell();\n"
+        "        shell.appendRow(spec.row, spec.template);\n"
+        "      }\n"
+        "    }\n"
+        "    if(foot){\n"
+        "      shell.appendFooter(foot.cloneNode(true));\n"
+        "      if(!fits()){\n"
+        "        shell.removeFooter();\n"
+        "        cur=makePage();\n"
+        "        shell=newShell();\n"
+        "        shell.appendFooter(foot.cloneNode(true));\n"
+        "      }\n"
+        "    }\n"
+      "  }\n"
         "  for(var i=0;i<nodes.length;i++){\n"
         "    var node=nodes[i];\n"
         "    if(node.nodeType===1 && node.classList && node.classList.contains('gw-page-break')){\n"
         "      if(cur.cont.childNodes.length===0) continue;\n"
         "      cur=makePage();\n"
+        "      continue;\n"
+        "    }\n"
+        "    if(node.nodeType===1 && node.tagName && node.tagName.toLowerCase()==='table'){\n"
+        "      paginateTable(node);\n"
         "      continue;\n"
         "    }\n"
         "    var toAdd=node.cloneNode(true);\n"
