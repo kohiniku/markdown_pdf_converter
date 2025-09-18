@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from functools import lru_cache
 from html import escape as _escape
 from html.parser import HTMLParser
@@ -50,12 +51,17 @@ _FALLBACK_BOOTSTRAP_CSS = (
 )
 
 _FALLBACK_THEME_CSS = (
-    "@font-face{font-family:'AppSans';font-style:normal;font-weight:400;src:local('Noto Sans CJK JP'),local('Noto Sans CJK JP Regular'),local('Noto Sans CJK JP Medium'),local('Noto Sans JP');font-display:swap;}"
-    "@font-face{font-family:'AppSans';font-style:normal;font-weight:700;src:local('Noto Sans CJK JP Bold'),local('Noto Sans CJK JP Black'),local('Noto Sans CJK JP'),local('Noto Sans JP Bold'),local('Noto Sans JP');font-display:swap;}"
     "body{font-family:'AppSans','Noto Sans CJK JP','Noto Sans JP','Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-synthesis:none;line-height:1.7;color:#222;max-width:880px;margin:0 auto;padding:24px;}"
     "h1,h2,h3{color:#222;margin:1.2em 0 .6em;font-weight:700;}"
     "strong,b{font-weight:700;font-family:'AppSans','Noto Sans CJK JP','Noto Sans JP','Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,'Segoe UI','Helvetica Neue',Arial,sans-serif;}"
     "code{background:#f6f8fa;padding:.2em .4em;border-radius:4px}"
+)
+
+_FALLBACK_FONT_FACE = (
+    "@font-face{font-family:'AppSans';font-style:normal;font-weight:400;"  # noqa: E501
+    "src:local('Noto Sans CJK JP'),local('Noto Sans JP'),local('Yu Gothic'),sans-serif;font-display:swap;}"
+    "@font-face{font-family:'AppSans';font-style:normal;font-weight:700;"
+    "src:local('Noto Sans CJK JP Bold'),local('Noto Sans JP Bold'),local('Yu Gothic Bold'),sans-serif;font-display:swap;}"
 )
 
 
@@ -64,6 +70,8 @@ def get_theme_css() -> str:
     theme_path = themes_dir / "growi_v7.css"
     bootstrap_path = themes_dir / "bootstrap5.min.css"
     custom_path = themes_dir / "custom_style.css"
+    font_regular = themes_dir / "NotoSansJP-Regular.otf"
+    font_bold = themes_dir / "NotoSansJP-Bold.otf"
 
     try:
         theme_mtime = theme_path.stat().st_mtime
@@ -80,6 +88,16 @@ def get_theme_css() -> str:
     except Exception:
         custom_mtime = -1.0
 
+    try:
+        regular_mtime = font_regular.stat().st_mtime
+    except Exception:
+        regular_mtime = -1.0
+
+    try:
+        bold_mtime = font_bold.stat().st_mtime
+    except Exception:
+        bold_mtime = -1.0
+
     return _load_theme_css_cached(
         (
             str(theme_path),
@@ -88,14 +106,37 @@ def get_theme_css() -> str:
             bootstrap_mtime,
             str(custom_path),
             custom_mtime,
+            str(font_regular),
+            regular_mtime,
+            str(font_bold),
+            bold_mtime,
         )
     )
 
 
 @lru_cache(maxsize=8)
-def _load_theme_css_cached(cache_key: tuple[str, float, str, float, str, float]) -> str:
-    theme_path_str, _, bootstrap_path_str, _, custom_path_str, _ = cache_key
+def _load_theme_css_cached(
+    cache_key: tuple[str, float, str, float, str, float, str, float, str, float]
+) -> str:
+    (
+        theme_path_str,
+        _theme_mtime,
+        bootstrap_path_str,
+        _bootstrap_mtime,
+        custom_path_str,
+        _custom_mtime,
+        font_regular_str,
+        _reg_mtime,
+        font_bold_str,
+        _bold_mtime,
+    ) = cache_key
     css_parts: list[str] = []
+
+    font_faces = _build_font_face_css(Path(font_regular_str), Path(font_bold_str))
+    if font_faces:
+        css_parts.append(font_faces)
+    else:
+        css_parts.append("".join(_FALLBACK_FONT_FACE))
 
     bootstrap_path = Path(bootstrap_path_str)
     try:
@@ -138,6 +179,63 @@ def _detect_custom_css_conflicts(css_text: str) -> list[str]:
     if re.search(r"body\s*\{[^}]*font-size", lowered):
         conflicts.append("font size")
     return conflicts
+
+
+def _build_font_face_css(font_regular: Path, font_bold: Path) -> str:
+    parts: list[str] = []
+    for weight, path in ((400, font_regular), (700, font_bold)):
+        try:
+            data = path.read_bytes()
+        except Exception:
+            return ""
+        encoded = base64.b64encode(data).decode("ascii")
+        parts.append(
+            "@font-face{"  # noqa: E501
+            "font-family:'AppSans';font-style:normal;"
+            f"font-weight:{weight};src:url(data:font/otf;base64,{encoded}) format('opentype');"
+            "font-display:swap;}"
+        )
+    return "".join(parts)
+
+
+def _ensure_block_spacing(md: str) -> str:
+    if not md:
+        return md
+    lines = md.splitlines()
+    out: list[str] = []
+    in_fence = False
+    fence_delim = ""
+    prev_was_table = False
+    for line in lines:
+        stripped = line.strip()
+
+        fence_start = stripped[:3] if len(stripped) >= 3 else stripped
+        if fence_start in ("```", "~~~"):
+            out.append(line)
+            if in_fence and fence_start == fence_delim:
+                in_fence = False
+                fence_delim = ""
+            else:
+                in_fence = True
+                fence_delim = fence_start
+            continue
+
+        if in_fence:
+            out.append(line)
+            continue
+
+        is_hr = stripped in {"---", "***", "___"}
+        is_table = stripped.startswith("|") and stripped.count("|") >= 2
+
+        if (is_hr or is_table) and out:
+            prev = out[-1]
+            if prev.strip() and prev != "" and not (is_table and prev_was_table):
+                out.append("")
+
+        out.append(line)
+        prev_was_table = is_table
+
+    return "\n".join(out)
 
 
 def collapse_soft_newlines(text: str) -> str:
@@ -235,6 +333,8 @@ def render_markdown_to_html(
         newline_to_space is None and settings.newline_as_space
     )
     markdown_text = _normalize_admonitions(markdown_text, collapse_inside=_collapse)
+
+    markdown_text = _ensure_block_spacing(markdown_text)
 
     if _collapse:
         markdown_text = collapse_soft_newlines(markdown_text)
