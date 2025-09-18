@@ -84,7 +84,8 @@ def test_preview_valid_markdown_returns_html():
     assert response.headers.get("content-type", "").startswith("text/html")
     assert "<h1" in response.text
     assert "<strong>World</strong>" in response.text
-    assert "strong, b { font-weight: 700; }" in response.text
+    assert "@font-face" in response.text
+    assert "font-family: 'AppSans', 'Noto Sans CJK JP'" in response.text
 
 
 def test_title_page_allows_html_break_tokens():

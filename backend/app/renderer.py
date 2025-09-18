@@ -14,8 +14,12 @@ from app.config import settings
 
 
 _FALLBACK_THEME_CSS = (
-    "body{font-family:'Noto Sans JP',sans-serif;line-height:1.7;color:#222;max-width:880px;margin:0 auto;padding:24px;}"
-    "h1,h2,h3{color:#222;margin:1.2em 0 .6em}code{background:#f6f8fa;padding:.2em .4em;border-radius:4px}"
+    "@font-face{font-family:'AppSans';font-style:normal;font-weight:400;src:local('Noto Sans CJK JP'),local('Noto Sans CJK JP Regular'),local('Noto Sans CJK JP Medium'),local('Noto Sans JP');font-display:swap;}"
+    "@font-face{font-family:'AppSans';font-style:normal;font-weight:700;src:local('Noto Sans CJK JP Bold'),local('Noto Sans CJK JP Black'),local('Noto Sans CJK JP'),local('Noto Sans JP Bold'),local('Noto Sans JP');font-display:swap;}"
+    "body{font-family:'AppSans','Noto Sans CJK JP','Noto Sans JP','Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-synthesis:none;line-height:1.7;color:#222;max-width:880px;margin:0 auto;padding:24px;}"
+    "h1,h2,h3{color:#222;margin:1.2em 0 .6em;font-weight:700;}"
+    "strong,b{font-weight:700;font-family:'AppSans','Noto Sans CJK JP','Noto Sans JP','Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,'Segoe UI','Helvetica Neue',Arial,sans-serif;}"
+    "code{background:#f6f8fa;padding:.2em .4em;border-radius:4px}"
 )
 
 

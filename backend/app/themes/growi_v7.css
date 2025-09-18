@@ -1,3 +1,19 @@
+@font-face {
+  font-family: 'AppSans';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Noto Sans CJK JP'), local('Noto Sans CJK JP Regular'), local('Noto Sans CJK JP Medium'), local('Noto Sans JP');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'AppSans';
+  font-style: normal;
+  font-weight: 700;
+  src: local('Noto Sans CJK JP Bold'), local('Noto Sans CJK JP Black'), local('Noto Sans CJK JP'), local('Noto Sans JP Bold'), local('Noto Sans JP');
+  font-display: swap;
+}
+
 /* GROWI v7-like content styles (approximation) */
 :root {
   --gw-fg: #24292f;
@@ -12,6 +28,8 @@
 
 html, body {
   background: var(--gw-bg);
+  font-family: 'AppSans', 'Noto Sans CJK JP', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-synthesis: none;
 }
 
 /* Screen preview: page framing */
@@ -43,7 +61,8 @@ html, body {
   line-height: 1.75;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Arial, sans-serif;
+  font-family: 'AppSans', 'Noto Sans CJK JP', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-synthesis: none;
 }
 
 /* Media should auto-fit within the page content box */
@@ -70,7 +89,10 @@ html, body {
 p { margin: 0 0 1em; }
 a { color: var(--gw-link); text-decoration: none; }
 a:hover { text-decoration: underline; }
-strong, b { font-weight: 700; }
+strong, b {
+  font-weight: 700;
+  font-family: 'AppSans', 'Noto Sans CJK JP', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
 
 /* Headings */
 h1, h2, h3, h4, h5, h6 { color: var(--gw-fg); margin: 1.4em 0 .6em; font-weight: 700; }
