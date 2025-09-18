@@ -121,28 +121,6 @@ def test_triple_colon_warning_title_with_emoji_dedup():
     assert ".admonition.warning::before" not in html
 
 
-def test_slide_mode_injects_css_rules():
-    md = "# A\n\nText\n\n## B\n\nMore"
-    res = client.post(
-        "/preview",
-        data={"markdown_content": md, "slide_mode": "true"},
-    )
-    assert res.status_code == 200
-    html = res.text
-    assert "page-break-before: always" in html or "break-before: page" in html
-
-
-def test_slide_mode_off_has_no_rules():
-    md = "# A\n\nText"
-    res = client.post(
-        "/preview",
-        data={"markdown_content": md},
-    )
-    assert res.status_code == 200
-    html = res.text
-    assert "page-break-before: always" not in html
-
-
 def test_newline_as_space_inside_admonition():
     md = (
         ":::note\n"
@@ -166,29 +144,15 @@ def test_newline_as_space_inside_admonition():
     assert "New para" in visible
 
 
-def test_manual_page_break_with_reserved_directive():
+def test_pagebreak_marker_converted_to_div():
     md = "A\n\n[[PAGEBREAK]]\n\nB"
-    res = client.post("/preview", data={"markdown_content": md, "manual_breaks": "true"})
+    res = client.post("/preview", data={"markdown_content": md})
     assert res.status_code == 200
     html = res.text
     assert 'class="gw-page-break"' in html
 
 
-def test_manual_page_break_with_custom_phrase():
-    md = "A\n\n<<PB>>\n\nB"
-    res = client.post(
-        "/preview",
-        data={
-            "markdown_content": md,
-            "manual_breaks": "true",
-            "break_phrases": "<<PB>>",
-        },
-    )
-    assert res.status_code == 200
-    html = res.text
-    assert 'class="gw-page-break"' in html
-    
-def test_reserved_marker_hidden_when_manual_breaks_disabled():
+def test_reserved_marker_hidden_from_output():
     md = "A\n\n[[PAGEBREAK]]\n\nB"
     res = client.post("/preview", data={"markdown_content": md})
     assert res.status_code == 200

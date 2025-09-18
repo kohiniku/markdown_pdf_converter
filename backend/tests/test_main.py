@@ -85,7 +85,25 @@ def test_preview_valid_markdown_returns_html():
     assert "<h1" in response.text
     assert "<strong>World</strong>" in response.text
     assert "@font-face" in response.text
+    assert ".text-danger" in response.text
     assert "font-family: 'AppSans', 'Noto Sans CJK JP'" in response.text
+
+
+def test_preview_allows_inline_style_attributes():
+    html = client.post(
+        "/preview",
+        data={"markdown_content": "Before <span style=\"color:red;\">赤字</span> After"},
+    ).text
+    assert "<span style=\"color:red;\">赤字</span>" in html
+
+
+def test_preview_allows_bootstrap_classes():
+    html = client.post(
+        "/preview",
+        data={"markdown_content": "<div class=\"text-danger\">Danger</div>"},
+    ).text
+    assert "class=\"text-danger\"" in html
+    assert ".text-danger" in html
 
 
 def test_title_page_allows_html_break_tokens():

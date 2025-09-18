@@ -13,6 +13,42 @@ import markdown as md
 from app.config import settings
 
 
+_FALLBACK_BOOTSTRAP_CSS = (
+    ".text-primary{color:#0d6efd!important;}\n"
+    ".text-secondary{color:#6c757d!important;}\n"
+    ".text-success{color:#198754!important;}\n"
+    ".text-info{color:#0dcaf0!important;}\n"
+    ".text-warning{color:#ffc107!important;}\n"
+    ".text-danger{color:#dc3545!important;}\n"
+    ".text-light{color:#f8f9fa!important;}\n"
+    ".text-dark{color:#212529!important;}\n"
+    ".bg-primary{background-color:#0d6efd!important;color:#fff!important;}\n"
+    ".bg-secondary{background-color:#6c757d!important;color:#fff!important;}\n"
+    ".bg-success{background-color:#198754!important;color:#fff!important;}\n"
+    ".bg-info{background-color:#0dcaf0!important;color:#000!important;}\n"
+    ".bg-warning{background-color:#ffc107!important;color:#000!important;}\n"
+    ".bg-danger{background-color:#dc3545!important;color:#fff!important;}\n"
+    ".bg-light{background-color:#f8f9fa!important;color:#000!important;}\n"
+    ".bg-dark{background-color:#212529!important;color:#fff!important;}\n"
+    ".badge{display:inline-block;padding:.35em .65em;font-size:.75em;font-weight:700;line-height:1;color:#fff;background-color:#6c757d;border-radius:.375rem;}\n"
+    ".badge.bg-danger{background-color:#dc3545!important;}\n"
+    ".badge.bg-success{background-color:#198754!important;}\n"
+    ".border{border:1px solid #dee2e6!important;}\n"
+    ".border-0{border:0!important;}\n"
+    ".rounded{border-radius:.375rem!important;}\n"
+    ".d-flex{display:flex!important;}\n"
+    ".d-inline-flex{display:inline-flex!important;}\n"
+    ".d-none{display:none!important;}\n"
+    ".flex-column{flex-direction:column!important;}\n"
+    ".flex-row{flex-direction:row!important;}\n"
+    ".justify-content-center{justify-content:center!important;}\n"
+    ".align-items-center{align-items:center!important;}\n"
+    ".p-3{padding:1rem!important;}\n"
+    ".m-3{margin:1rem!important;}\n"
+    ".table{width:100%;margin-bottom:1rem;color:inherit;vertical-align:top;border-color:#dee2e6;}\n"
+    ".table td,.table th{padding:.5rem;border-color:inherit;}\n"
+)
+
 _FALLBACK_THEME_CSS = (
     "@font-face{font-family:'AppSans';font-style:normal;font-weight:400;src:local('Noto Sans CJK JP'),local('Noto Sans CJK JP Regular'),local('Noto Sans CJK JP Medium'),local('Noto Sans JP');font-display:swap;}"
     "@font-face{font-family:'AppSans';font-style:normal;font-weight:700;src:local('Noto Sans CJK JP Bold'),local('Noto Sans CJK JP Black'),local('Noto Sans CJK JP'),local('Noto Sans JP Bold'),local('Noto Sans JP');font-display:swap;}"
@@ -24,22 +60,84 @@ _FALLBACK_THEME_CSS = (
 
 
 def get_theme_css() -> str:
-    theme_path = Path(__file__).with_suffix("").parent / "themes" / "growi_v7.css"
+    themes_dir = Path(__file__).with_suffix("").parent / "themes"
+    theme_path = themes_dir / "growi_v7.css"
+    bootstrap_path = themes_dir / "bootstrap5.min.css"
+    custom_path = themes_dir / "custom_style.css"
+
     try:
-        mtime = theme_path.stat().st_mtime
+        theme_mtime = theme_path.stat().st_mtime
     except Exception:
-        mtime = -1.0
-    return _load_theme_css_cached((str(theme_path), mtime))
+        theme_mtime = -1.0
+
+    try:
+        bootstrap_mtime = bootstrap_path.stat().st_mtime
+    except Exception:
+        bootstrap_mtime = -1.0
+
+    try:
+        custom_mtime = custom_path.stat().st_mtime
+    except Exception:
+        custom_mtime = -1.0
+
+    return _load_theme_css_cached(
+        (
+            str(theme_path),
+            theme_mtime,
+            str(bootstrap_path),
+            bootstrap_mtime,
+            str(custom_path),
+            custom_mtime,
+        )
+    )
 
 
 @lru_cache(maxsize=8)
-def _load_theme_css_cached(cache_key: tuple[str, float]) -> str:
-    path_str, _ = cache_key
-    path = Path(path_str)
+def _load_theme_css_cached(cache_key: tuple[str, float, str, float, str, float]) -> str:
+    theme_path_str, _, bootstrap_path_str, _, custom_path_str, _ = cache_key
+    css_parts: list[str] = []
+
+    bootstrap_path = Path(bootstrap_path_str)
     try:
-        return path.read_text(encoding="utf-8")
+        css_parts.append(bootstrap_path.read_text(encoding="utf-8"))
     except Exception:
-        return _FALLBACK_THEME_CSS
+        css_parts.append("".join(_FALLBACK_BOOTSTRAP_CSS))
+
+    theme_path = Path(theme_path_str)
+    try:
+        css_parts.append(theme_path.read_text(encoding="utf-8"))
+    except Exception:
+        css_parts.append("".join(_FALLBACK_THEME_CSS))
+
+    custom_path = Path(custom_path_str)
+    try:
+        custom_css = custom_path.read_text(encoding="utf-8")
+        conflicts = _detect_custom_css_conflicts(custom_css)
+        if conflicts:
+            notice = (
+                "/* WARNING: custom_style.css overrides {}. "
+                "GUI controls for these settings may not have effect. */\n"
+            ).format(
+                ", ".join(conflicts)
+            )
+            css_parts.append(notice + custom_css)
+        else:
+            css_parts.append(custom_css)
+    except Exception:
+        # Custom CSS is optional; missing file is acceptable.
+        pass
+
+    return "\n".join(css_parts)
+
+
+def _detect_custom_css_conflicts(css_text: str) -> list[str]:
+    conflicts: list[str] = []
+    lowered = css_text.lower()
+    if "@page" in lowered:
+        conflicts.append("page size")
+    if re.search(r"body\s*\{[^}]*font-size", lowered):
+        conflicts.append("font size")
+    return conflicts
 
 
 def collapse_soft_newlines(text: str) -> str:
@@ -117,9 +215,6 @@ def render_markdown_to_html(
     page_size: Optional[str] = None,
     orientation: Optional[str] = None,
     margin: Optional[str] = None,
-    slide_mode: Optional[bool] = None,
-    manual_breaks: Optional[bool] = None,
-    break_phrases: Optional[str] = None,
     # Title page options (for slide/cover page)
     title_page: Optional[bool] = None,
     title_text: Optional[str] = None,
@@ -132,20 +227,7 @@ def render_markdown_to_html(
     (GFM-like lists, admonitions, tasklist, footnotes, tables, fences).
     """
 
-    # Manual page break keywords
-    use_manual = settings.manual_break_enabled_default if manual_breaks is None else bool(manual_breaks)
-    tokens = settings.manual_break_tokens.copy()
-    if break_phrases:
-        tokens = [t.strip() for t in break_phrases.split(",") if t.strip()]
-
-    # Always hide the reserved marker '[[PAGEBREAK]]' from output.
-    # - When manual breaks are enabled, replace it (and any configured tokens) with a
-    #   non-printing page-break element.
-    # - When disabled, strip the reserved marker so it never shows up in preview/PDF.
-    if use_manual:
-        markdown_text = _apply_manual_page_breaks(markdown_text, tokens)
-    else:
-        markdown_text = _strip_reserved_page_breaks(markdown_text)
+    markdown_text = _replace_reserved_page_breaks(markdown_text)
 
     # Normalize GitHub-style callouts and :::admonitions into !!! admonitions
     # Also optionally collapse soft newlines inside admonition bodies if requested.
@@ -215,7 +297,6 @@ def render_markdown_to_html(
         resolved_margin,
     )
     theme_css = custom_css if custom_css else get_theme_css()
-    slide_css = _build_slide_css(bool(slide_mode))
     title_css = _build_title_css(
         resolved_page_size,
         resolved_orientation,
@@ -286,7 +367,7 @@ def render_markdown_to_html(
       <head>
         <meta charset=\"utf-8\" />
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-        <style>{base_css}{page_css}{page_vars_css}{slide_css}{title_css}{theme_css}</style>
+        <style>{theme_css}{title_css}{base_css}{page_css}{page_vars_css}</style>
       </head>
       <body class=\"gw-screen\">
         <div class=\"gw-page-wrapper\">
@@ -298,7 +379,8 @@ def render_markdown_to_html(
       </body>
     </html>
     """
-    return html_doc, (base_css + theme_css)
+    combined_css = theme_css + title_css + base_css + page_css + page_vars_css
+    return html_doc, combined_css
 
 
 def _build_title_css(size: str, orientation: str, margin: str) -> str:
@@ -496,73 +578,28 @@ def _css_length_to_px(value: Optional[str]) -> Optional[float]:
     return None
 
 
-def _build_slide_css(enabled: bool) -> str:
-    if not enabled:
-        return ""
-    # Insert page breaks at good spots for slides: before h1/h2, after hr.
-    # Avoid breaking before the very first heading of each document.
-    return (
-        "@media print{"
-        "h1{page-break-before: always;break-before: page;}"
-        "h2{page-break-before: always;break-before: page;}"
-        "hr{page-break-after: always;break-after: page;}"
-        "h1:first-of-type{page-break-before: auto;break-before: auto;}"
-        "h2:first-of-type{page-break-before: auto;break-before: auto;}"
-        "}"
-        "@media screen{"
-        ".gw-container h1, .gw-container h2{margin-top: 1.6em;}"
-        "}"
-    )
-
-
-def _apply_manual_page_breaks(md: str, tokens: list[str]) -> str:
+def _replace_reserved_page_breaks(md: str) -> str:
     if not md:
         return md
-    # Reserved markers recognized regardless of configuration (case-insensitive)
-    # - '[[PAGEBREAK]]' is the new default marker
-    # - ':::pagebreak' kept for backward compatibility
+
     reserved_markers = {"[[pagebreak]]", "[[PAGEBREAK]]", ":::pagebreak"}
-    tokset = {t.strip().lower() for t in tokens if t.strip()}
     lines = md.splitlines()
     out: list[str] = []
     i = 0
     n = len(lines)
     while i < n:
         raw = lines[i]
-        s = raw.strip()
-        lower = s.lower()
-        if lower in reserved_markers or lower in tokset:
-            # emit block-level HTML with blank lines around to ensure proper parsing
+        if raw.strip().lower() in reserved_markers:
             if out and out[-1] != "":
                 out.append("")
             out.append('<div class="gw-page-break"></div>')
-            # skip consecutive markers
             i += 1
-            # add a trailing blank line if next is not blank
+            # ensure a blank line separates the break from following content when needed
             if i < n and lines[i].strip() != "":
                 out.append("")
             continue
         out.append(raw)
         i += 1
-    return "\n".join(out)
-
-
-def _strip_reserved_page_breaks(md: str) -> str:
-    """Remove reserved page break markers from the markdown so the raw token
-    never appears in preview/PDF when manual breaks are disabled.
-
-    Only strips when the marker is the sole content of a line (ignoring spaces).
-    """
-    if not md:
-        return md
-    reserved = {"[[pagebreak]]"}
-    lines = md.splitlines()
-    out: list[str] = []
-    for raw in lines:
-        if raw.strip().lower() in reserved:
-            # Skip the marker line entirely; keep structural blank lines implicit
-            continue
-        out.append(raw)
     return "\n".join(out)
 
 

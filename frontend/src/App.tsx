@@ -28,7 +28,6 @@ function App() {
   // Page setup
   const [pageSize, setPageSize] = useState<string>('A4');
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
-  const [slideMode, setSlideMode] = useState<boolean>(false);
   // Title page settings
   const [includeTitlePage, setIncludeTitlePage] = useState<boolean>(false);
   const [titleText, setTitleText] = useState<string>("");
@@ -72,7 +71,6 @@ function App() {
       if (fontSize) formData.append('font_size', String(fontSize));
       if (pageSize) formData.append('page_size', pageSize);
       if (orientation) formData.append('orientation', orientation);
-      if (slideMode) formData.append('slide_mode', 'true');
       if (includeTitlePage) {
         formData.append('title_page', 'true');
         if (titleText) formData.append('title_text', titleText);
@@ -82,7 +80,7 @@ function App() {
 
       const response = await fetch('/convert', {
         method: 'POST',
-        body: (() => { formData.append('manual_breaks', 'true'); return formData; })(),
+        body: formData,
       });
 
       const data = await response.json();
@@ -171,15 +169,12 @@ function App() {
         if (fontSize) formData.append('font_size', String(fontSize));
         if (pageSize) formData.append('page_size', pageSize);
         if (orientation) formData.append('orientation', orientation);
-        if (slideMode) formData.append('slide_mode', 'true');
         if (includeTitlePage) {
           formData.append('title_page', 'true');
           if (titleText) formData.append('title_text', titleText);
           if (titleDate) formData.append('title_date', titleDate);
           if (titleName) formData.append('title_name', titleName);
         }
-        // Always enable manual page breaks so [[PAGEBREAK]] works in preview
-        formData.append('manual_breaks', 'true');
         const res = await fetch('/preview', { method: 'POST', body: formData });
         if (!res.ok) throw new Error('Failed to render preview');
         const html = await res.text();
@@ -193,7 +188,7 @@ function App() {
     return () => {
       if (previewTimer.current) window.clearTimeout(previewTimer.current);
     };
-  }, [markdownContent, fontSize, pageSize, orientation, slideMode]);
+  }, [markdownContent, fontSize, pageSize, orientation]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
@@ -261,22 +256,6 @@ function App() {
                     <option value="portrait">Portrait</option>
                     <option value="landscape">Landscape</option>
                   </select>
-                </label>
-                <label className="text-sm" style={{ color: 'var(--muted)' }}>
-                  Slide mode (auto page breaks)
-                  <div className="mt-2 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={slideMode}
-
-
-                      
-                      onChange={(e) => setSlideMode(e.target.checked)}
-                    />
-                    <span className="text-xs" style={{ color: 'var(--text)' }}>
-                      Insert page breaks at headings/hr or [[PAGEBREAK]]
-                    </span>
-                  </div>
                 </label>
                 <label className="text-sm col-span-2" style={{ color: 'var(--muted)' }}>
                   Title page (cover slide)

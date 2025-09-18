@@ -32,11 +32,6 @@ class Settings(BaseSettings):
     # Targeted GROWI compatibility version (documentation only)
     growi_target_version: str = "7.3.0"
 
-    # Manual page break rules
-    manual_break_enabled_default: bool = False
-    # Comma-separated list or JSON array of exact phrases that trigger a page break
-    manual_break_tokens: List[str] = []
-    
     secret_key: str = "your-secret-key-here"
     access_token_expire_minutes: int = 30
 
@@ -50,21 +45,6 @@ class Settings(BaseSettings):
         """Accept JSON list or comma-separated string for CORS_ORIGINS."""
         if isinstance(v, str):
             s = v.strip()
-            if s.startswith("["):
-                try:
-                    return json.loads(s)
-                except Exception:
-                    pass
-            return [item.strip() for item in s.split(",") if item.strip()]
-        return v
-
-    @field_validator("manual_break_tokens", mode="before")
-    @classmethod
-    def parse_break_tokens(cls, v: Any) -> Any:
-        if isinstance(v, str):
-            s = v.strip()
-            if not s:
-                return []
             if s.startswith("["):
                 try:
                     return json.loads(s)
