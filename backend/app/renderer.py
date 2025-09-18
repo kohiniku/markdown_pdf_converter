@@ -13,17 +13,29 @@ import markdown as md
 from app.config import settings
 
 
-@lru_cache(maxsize=1)
+_FALLBACK_THEME_CSS = (
+    "body{font-family:'Noto Sans JP',sans-serif;line-height:1.7;color:#222;max-width:880px;margin:0 auto;padding:24px;}"
+    "h1,h2,h3{color:#222;margin:1.2em 0 .6em}code{background:#f6f8fa;padding:.2em .4em;border-radius:4px}"
+)
+
+
 def get_theme_css() -> str:
     theme_path = Path(__file__).with_suffix("").parent / "themes" / "growi_v7.css"
     try:
-        return theme_path.read_text(encoding="utf-8")
+        mtime = theme_path.stat().st_mtime
     except Exception:
-        # very small safe fallback
-        return (
-            "body{font-family:'Noto Sans JP',sans-serif;line-height:1.7;color:#222;max-width:880px;margin:0 auto;padding:24px;}"
-            "h1,h2,h3{color:#222;margin:1.2em 0 .6em}code{background:#f6f8fa;padding:.2em .4em;border-radius:4px}"
-        )
+        mtime = -1.0
+    return _load_theme_css_cached((str(theme_path), mtime))
+
+
+@lru_cache(maxsize=8)
+def _load_theme_css_cached(cache_key: tuple[str, float]) -> str:
+    path_str, _ = cache_key
+    path = Path(path_str)
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception:
+        return _FALLBACK_THEME_CSS
 
 
 def collapse_soft_newlines(text: str) -> str:
@@ -335,16 +347,35 @@ def _build_title_css(size: str, orientation: str, margin: str) -> str:
     )
 
 
+def _format_title_field(value: str) -> str:
+    if not value:
+        return ""
+    import html as _html
+    import re as _re
+
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not normalized:
+        return ""
+    escaped = _html.escape(normalized)
+    escaped = escaped.replace("\n", "<br />")
+    escaped = _re.sub(r"&lt;br\s*/?&gt;", "<br />", escaped, flags=_re.IGNORECASE)
+    return escaped
+
+
 def _build_title_page_html(*, enabled: bool, title: str, date: str, author: str) -> str:
     if not enabled:
         return ""
+    title_value = title or ""
+    date_value = date or ""
+    author_value = author or ""
+
+    t = _format_title_field(title_value)
+    d = _format_title_field(date_value)
+    a = _format_title_field(author_value)
+
     # Render only if at least one field is provided
-    if not (title.strip() or date.strip() or author.strip()):
+    if not (t or d or a):
         return ""
-    import html as _html
-    t = _html.escape(title.strip()) if title else ""
-    d = _html.escape(date.strip()) if date else ""
-    a = _html.escape(author.strip()) if author else ""
 
     parts: list[str] = ["<section class=\"gw-title-page\">",
                         "<div>"]

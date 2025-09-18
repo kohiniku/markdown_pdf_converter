@@ -70,6 +70,7 @@ html, body {
 p { margin: 0 0 1em; }
 a { color: var(--gw-link); text-decoration: none; }
 a:hover { text-decoration: underline; }
+strong, b { font-weight: 700; }
 
 /* Headings */
 h1, h2, h3, h4, h5, h6 { color: var(--gw-fg); margin: 1.4em 0 .6em; font-weight: 700; }

@@ -84,6 +84,29 @@ def test_preview_valid_markdown_returns_html():
     assert response.headers.get("content-type", "").startswith("text/html")
     assert "<h1" in response.text
     assert "<strong>World</strong>" in response.text
+    assert "strong, b { font-weight: 700; }" in response.text
+
+
+def test_title_page_allows_html_break_tokens():
+    payload = {
+        "markdown_content": "# Body",
+        "title_page": "true",
+        "title_text": "Line1<br>Line2",
+    }
+    response = client.post("/preview", data=payload)
+    assert response.status_code == 200
+    assert "<h1 class=\"gw-title\">Line1<br />Line2</h1>" in response.text
+
+
+def test_title_page_converts_newlines_to_breaks():
+    payload = {
+        "markdown_content": "# Body",
+        "title_page": "true",
+        "title_text": "Line1\nLine2",
+    }
+    response = client.post("/preview", data=payload)
+    assert response.status_code == 200
+    assert "<h1 class=\"gw-title\">Line1<br />Line2</h1>" in response.text
 
 
 def test_preview_admonition_and_tasklist():
