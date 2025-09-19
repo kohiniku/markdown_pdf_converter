@@ -13,21 +13,23 @@ class PDFAdapter(Protocol):
 
 @dataclass
 class WeasyPrintAdapter:
-    """PDF adapter using WeasyPrint engine.
+    """Adapter that generates PDFs via WeasyPrint.
 
-    This is kept minimal so we can swap engines later if needed.
+    Kept minimal to allow swapping engines later.
+    将来的に他エンジンへ差し替えやすいよう最小限の実装に留めている。
     """
 
     def generate(self, html: str, output_path: Path) -> None:  # type: ignore[override]
-        # Lazy import so environments without WeasyPrint can still run tests
+        # Lazy import so tests run even without WeasyPrint installed
+        # WeasyPrintが入っていない環境でもテストを回せるよう遅延インポートする
         try:
             import weasyprint  # type: ignore
-        except Exception as e:  # pragma: no cover - covered by DummyAdapter usage
+        except Exception as e:  # pragma: no cover - DummyAdapterで吸収するケース
             DummyAdapter().generate(html, output_path)
             return
 
-        # Rewrite app-served asset URLs ("/assets/<file>") to local file URLs so
-        # WeasyPrint can load images without knowing the server origin.
+        # Rewrite app-served asset URLs to local file URLs so WeasyPrint can load images
+        # アプリ内のアセットURL("/assets/<file>")をローカルファイルURLへ書き換え、WeasyPrintがサーバーのオリジンを知らなくても画像を読み込めるようにする
         html = rewrite_asset_urls_for_pdf(html, Path(settings.upload_dir).resolve())
 
         pdf_document = weasyprint.HTML(string=html)
@@ -45,11 +47,14 @@ def rewrite_asset_urls_for_pdf(html: str, uploads_dir: Path) -> str:
 
 @dataclass
 class DummyAdapter:
-    """A tiny adapter that writes a minimal PDF for testing without external deps."""
+    """Tiny adapter that writes a minimal PDF without external deps.
+
+    外部依存なくテスト用の最小PDFを書き出すアダプタ。
+    """
 
     def generate(self, html: str, output_path: Path) -> None:  # type: ignore[override]
-        # Minimal valid PDF (one empty page). Good enough for tests.
-        # Reference: PDF 1.4 skeleton
+        # Minimal single-page PDF sufficient for tests (PDF 1.4 skeleton)
+        # 空の1ページだけを含む最小構成のPDF。テスト用途には十分。（参考: PDF 1.4のスケルトン構造）
         minimal_pdf = (
             b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n1 0 obj<<>>endobj\n"
             b"2 0 obj<< /Type /Catalog /Pages 3 0 R >>endobj\n"
@@ -65,7 +70,8 @@ def get_adapter(engine: str) -> PDFAdapter:
     engine_norm = (engine or "").strip().lower()
     if engine_norm in ("weasyprint", "weasy", "default", ""):
         try:
-            # Probe availability lazily
+            # Probe availability lazily and fall back if unavailable
+            # 利用可否を遅延確認し、存在しなければフォールバックする
             import importlib
             importlib.import_module("weasyprint")
             return WeasyPrintAdapter()
@@ -73,5 +79,6 @@ def get_adapter(engine: str) -> PDFAdapter:
             return DummyAdapter()
     if engine_norm in ("dummy", "test"):
         return DummyAdapter()
-    # Unknown engine → safe fallback
+    # Unknown engines fall back to the dummy adapter
+    # 未知のエンジン指定は安全側に倒してダミーを返す
     return DummyAdapter()

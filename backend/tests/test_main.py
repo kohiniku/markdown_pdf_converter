@@ -141,9 +141,11 @@ def test_preview_admonition_and_tasklist():
     response = client.post("/preview", data={"markdown_content": md})
     assert response.status_code == 200
     text = response.text
-    # Admonition container
+    # Assert that the admonition container is present
+    # アドモニションのコンテナが含まれているか確認する
     assert "admonition" in text
-    # Tasklist checkboxes
+    # Verify task list checkboxes are rendered in HTML
+    # タスクリストのチェックボックスがHTMLに出力されているか確認する
     assert "type=\"checkbox\"" in text
 
 
@@ -158,7 +160,8 @@ def test_preview_emoji_shortcode_unicode():
     md = ":warning: 注意"
     response = client.post("/preview", data={"markdown_content": md, "emoji_mode": "unicode"})
     assert response.status_code == 200
-    # Unicode warning sign should be present
+    # Ensure the Unicode warning icon is present
+    # Unicodeの警告アイコンが含まれているか確認する
     assert "⚠" in response.text
 
 
@@ -167,7 +170,8 @@ def test_preview_emoji_off_removes_emoji():
     response = client.post("/preview", data={"markdown_content": md, "emoji_mode": "off"})
     assert response.status_code == 200
     html = response.text
-    # Ignore icons defined inside inline <style>; check visible content only
+    # Ignore icons inside inline <style> and check only visible content
+    # インライン<style>内のアイコンは除外し、画面に表示される領域のみを確認する
     cut = html.rfind("</style>")
     visible = html[cut + len("</style>") :] if cut != -1 else html
     assert "⚠" not in visible

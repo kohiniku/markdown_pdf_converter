@@ -2,11 +2,13 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 /// <reference types="vitest" />
 import App from './App';
 
-// Mock fetch globally
+// Mock global fetch for tests
+// グローバルなfetchをモック化する
 const g: any = globalThis as any;
 g.fetch = vi.fn();
 
-// Mock FileReader
+// Mock FileReader for browser APIs in tests
+// FileReaderもテスト用にモック化する
 const mockFileReader: any = {
   readAsText: vi.fn(),
   result: '',
@@ -19,7 +21,8 @@ g.FileReader = vi.fn().mockImplementation(() => mockFileReader);
 describe('App Component', () => {
   beforeEach(() => {
     (g.fetch as any).mockClear();
-    // Default: preview endpoint returns simple HTML
+    // By default, preview endpoint returns simple HTML
+    // デフォルトではプレビューAPIがシンプルなHTMLを返す想定
     g.fetch.mockResolvedValue({
       ok: true,
       text: () => Promise.resolve('<html><body><h1>Preview</h1></body></html>'),
@@ -56,7 +59,8 @@ describe('App Component', () => {
   });
 
   test('shows error when conversion fails', async () => {
-    // Preview returns HTML; convert fails with network error
+    // Keep preview successful but force a network error on convert
+    // プレビューは成功させつつ、変換APIでネットワークエラーを起こさせる
     (g.fetch as any).mockImplementation((url: string) => {
       if (typeof url === 'string' && url.includes('/convert')) {
         return Promise.reject(new Error('Network error'));

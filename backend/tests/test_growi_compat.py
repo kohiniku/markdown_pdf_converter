@@ -15,7 +15,8 @@ def test_preview_has_growi_container_and_heading_anchor():
     assert res.status_code == 200
     html = res.text
     assert "class=\"gw-container\"" in html
-    # permalink anchor span/link
+    # Ensure the heading permalink element exists
+    # 見出し横に生成されるパーマリンク要素を確認する
     assert "gw-heading-anchor" in html
 
 
@@ -39,11 +40,13 @@ def test_preview_footnotes_and_tables_render():
 
 
 def test_proxy_env_application(monkeypatch):
-    # ensure we start from a clean env
+    # Reset related environment variables before the test
+    # テスト開始時に環境変数を一旦リセットする
     for k in ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]:
         monkeypatch.delenv(k, raising=False)
 
-    # override live settings via monkeypatching attributes
+    # Monkeypatch settings to verify proxy application
+    # 設定値をモンキーパッチで差し替えて動作を確認する
     monkeypatch.setattr(settings, "http_proxy", "http://proxy.local:8080")
     monkeypatch.setattr(settings, "https_proxy", "https://secure-proxy.local:8443")
     monkeypatch.setattr(settings, "no_proxy", "localhost,127.0.0.1")
@@ -86,7 +89,8 @@ def test_github_callout_note_blockquote():
     res = client.post("/preview", data={"markdown_content": md})
     assert res.status_code == 200
     html = res.text
-    # rendered as admonition note
+    # Verify it renders as an admonition note
+    # アドモニションnoteとして描画されていることを確認する
     assert 'class="admonition note"' in html
     assert 'Useful Information' in html
 
@@ -111,12 +115,15 @@ def test_triple_colon_warning_title_with_emoji_dedup():
     res = client.post("/preview", data={"markdown_content": md})
     assert res.status_code == 200
     html = res.text
-    # Consider only visible content (cut after </style>)
+    # Inspect only the visible region after </style>
+    # </style>以降の可視領域のみを対象にチェックする
     cut = html.rfind("</style>")
     visible = html[cut + len("</style>") :] if cut != -1 else html
-    # Title text is present once (CSS provides the emoji icon)
+    # Confirm the title text appears once (emoji provided by CSS)
+    # タイトル文字列が重複せず1回だけ出力されていることを確認する（絵文字はCSS側で付与される）
     assert visible.count(">Warning<") == 1
-    # CSS contains mapping for title ::before, not container ::before
+    # Ensure CSS targets the title ::before but not the container ::before
+    # CSSがタイトル用::beforeにのみ定義されていることを確認し、コンテナ側が空であることを担保する
     assert ".admonition.warning .admonition-title::before" in html
     assert ".admonition.warning::before" not in html
 
@@ -136,11 +143,13 @@ def test_newline_as_space_inside_admonition():
     )
     assert res.status_code == 200
     html = res.text
-    # After </style>, look for collapsed line content in a single paragraph
+    # Check that lines collapse into a single paragraph after </style>
+    # </style>以降で行が結合された段落に変換されているかを検査する
     cut = html.rfind("</style>")
     visible = html[cut + len("</style>") :] if cut != -1 else html
     assert "Line one continues here" in visible
-    # paragraph break preserved
+    # Ensure paragraph breaks are preserved
+    # 段落区切りが保持されていることを確認する
     assert "New para" in visible
 
 

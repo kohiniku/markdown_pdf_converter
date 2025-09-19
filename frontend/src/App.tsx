@@ -15,7 +15,8 @@ function App() {
   const [filename, setFilename] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [cssStyles, setCssStyles] = useState('');
-  // PDF base font size (px)
+  // Base PDF font size (px)
+  // PDFの基準フォントサイズ（px）
   const [fontSize, setFontSize] = useState<number>(13);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ConversionResult | null>(null);
@@ -25,16 +26,19 @@ function App() {
   const [previewHtml, setPreviewHtml] = useState('');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const previewTimer = useRef<number | null>(null);
-  // Page setup
+  // Page size and orientation settings
+  // 用紙サイズや向きの設定
   const [pageSize, setPageSize] = useState<string>('A4');
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
-  // Title page settings
+  // Title page (cover) settings
+  // タイトルページ（表紙）の設定
   const [includeTitlePage, setIncludeTitlePage] = useState<boolean>(false);
   const [titleText, setTitleText] = useState<string>("");
   const [titleDate, setTitleDate] = useState<string>("");
   const [titleName, setTitleName] = useState<string>("");
 
   // Initialize theme from localStorage or system preference
+  // localStorageやOSの設定からテーマを初期化する
   useEffect(() => {
     const saved = window.localStorage.getItem('theme');
     if (saved === 'dark' || saved === 'light') {
@@ -45,7 +49,8 @@ function App() {
     setIsDarkMode(prefersDark);
   }, []);
 
-  // Apply/remove .dark on <html> to activate CSS variable overrides
+  // Toggle the .dark class on <html> to switch theme variables
+  // <html>要素に.darkクラスを付け外ししてテーマ用CSS変数を切り替える
   useEffect(() => {
     const root = document.documentElement;
     if (isDarkMode) root.classList.add('dark');
@@ -66,7 +71,8 @@ function App() {
     try {
       const formData = new FormData();
       formData.append('markdown_content', markdownContent);
-      // Do not send filename; server always generates a new unique name
+      // Let the server generate unique filenames instead of client-supplied ones
+      // サーバー側で一意なファイル名を生成するためクライアントの名前は送らない
       if (cssStyles) formData.append('css_styles', cssStyles);
       if (fontSize) formData.append('font_size', String(fontSize));
       if (pageSize) formData.append('page_size', pageSize);
@@ -152,7 +158,8 @@ function App() {
     }
   };
 
-  // Live preview (debounced)
+  // Update the live preview with debounce
+  // ライブプレビューをディレイ付きで更新する
   useEffect(() => {
     if (previewTimer.current) {
       window.clearTimeout(previewTimer.current);
@@ -180,7 +187,8 @@ function App() {
         const html = await res.text();
         setPreviewHtml(html);
       } catch {
-        // keep silent for preview errors
+        // Silently swallow preview refresh failures
+        // プレビュー更新の失敗はユーザーに通知せず静かに無視する
       } finally {
         setIsPreviewLoading(false);
       }
@@ -193,7 +201,10 @@ function App() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
+        {/*
+          Header
+          ヘッダー
+        */}
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <FileText className="w-8 h-8" style={{ color: 'var(--primary)' }} />
@@ -212,9 +223,15 @@ function App() {
         </header>
 
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:[grid-template-columns:1.1fr_1.4fr] 2xl:[grid-template-columns:1fr_1.6fr]">
-          {/* Input Section */}
+          {/*
+            Input Area
+            入力エリア
+          */}
           <div className="space-y-6 min-w-0">
-            {/* PDF Settings */}
+            {/*
+              PDF Settings Panel
+              PDF設定
+            */}
             <div className="card">
               <h2 className="text-lg font-semibold mb-4">PDF Settings</h2>
               <div className="flex items-center justify-between mb-2">
@@ -303,7 +320,7 @@ function App() {
                 </div>
               )}
             </div>
-            {/* File Upload Area */}
+            {/* ファイルアップロードエリア */}
             <div className="card">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Upload className="w-5 h-5" />
@@ -334,7 +351,10 @@ function App() {
               </div>
             </div>
 
-            {/* Markdown Input */}
+            {/*
+              Markdown Editor
+              Markdown入力欄
+            */}
             <div className="card">
               <h2 className="text-lg font-semibold mb-4">Markdown Content</h2>
               <textarea
@@ -344,14 +364,17 @@ function App() {
                 placeholder="Enter your Markdown content here..."
                 className="input textarea w-full"
                 onDragOver={(e) => {
-                  // Allow dropping images into the editor
+                  // Allow dropping image files directly onto the editor
+                  // エディタ上に直接画像ファイルをドロップできるようにする
                   if (e.dataTransfer.types.includes('Files')) e.preventDefault();
                 }}
                 onDrop={async (e) => {
                   if (!e.dataTransfer?.files?.length) return;
                   const files = Array.from(e.dataTransfer.files);
                   const img = files.find((f) => /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
-                  if (!img) return; // let non-image drops bubble (handled by outer dropzone)
+                  // Non-image drops are handled by the outer drop zone
+                  // 画像以外は外側のドロップゾーンで処理させる
+                  if (!img) return;
                   e.preventDefault();
                   try {
                     const fd = new FormData();
@@ -360,7 +383,8 @@ function App() {
                     if (!res.ok) throw new Error('Image upload failed');
                     const data = await res.json();
                     const url: string = data.url;
-                    // Insert Markdown image at caret/selection
+                    // Insert Markdown image link at the caret position
+                    // キャレット位置にMarkdown形式の画像リンクを挿入する
                     const el = textareaRef.current;
                     const alt = img.name.replace(/\.[^.]+$/, '');
                     const snippet = `![${alt}](${url})`;
@@ -373,7 +397,8 @@ function App() {
                       const prefix = needsBreakBefore ? '\n' : '';
                       const newText = `${before}${prefix}${snippet}\n${after}`;
                       setMarkdownContent(newText);
-                      // Restore caret after inserted snippet
+                      // Restore caret so the insertion feels natural
+                      // 挿入後もキャレット位置が自然になるよう復元する
                       const newPos = (before + prefix + snippet + '\n').length;
                       setTimeout(() => { if (el) el.setSelectionRange(newPos, newPos); el?.focus(); }, 0);
                     } else {
@@ -387,12 +412,21 @@ function App() {
               />
             </div>
 
-            {/* Settings removed as requested */}
+            {/*
+              Additional settings intentionally removed per requirements
+              追加設定は要求により削除済み
+            */}
           </div>
 
-          {/* Output Section */}
+          {/*
+            Output Area
+            出力エリア
+          */}
           <div className="space-y-6 min-w-0">
-            {/* Convert Button */}
+            {/*
+              Convert Button
+              変換ボタン
+            */}
             <button
               onClick={handleConvert}
               disabled={isLoading || !markdownContent.trim()}
@@ -401,14 +435,20 @@ function App() {
               {isLoading ? 'Converting...' : 'Convert to PDF'}
             </button>
 
-            {/* Error Display */}
+            {/*
+              Error Display
+              エラー表示
+            */}
             {error && (
               <div className="card border-red-500 bg-red-50 dark:bg-red-900/20">
                 <p className="text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
 
-            {/* Success Result */}
+            {/*
+              Success Message
+              変換成功メッセージ
+            */}
             {result && (
               <div className="card border-green-500 bg-green-50 dark:bg-green-900/20">
                 <div className="flex items-center justify-between">
@@ -431,7 +471,10 @@ function App() {
               </div>
             )}
 
-            {/* Live Preview */}
+            {/*
+              Live Preview
+              ライブプレビュー
+            */}
             <div className="card">
               <h2 className="text-lg font-semibold mb-4">Preview</h2>
               {isPreviewLoading && (

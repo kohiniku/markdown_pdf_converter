@@ -20,6 +20,8 @@ from app import models
 from app.renderer import render_markdown_to_html
 from app.pdf.adapter import get_adapter
 
+# Initialize required tables at startup
+# アプリ起動時に必要なテーブルを初期化する
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -28,6 +30,8 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Add CORS middleware only when origins are configured
+# CORSが設定されている場合のみオリジンを許可するミドルウェアを追加
 if settings.cors_origins:
     app.add_middleware(
         CORSMiddleware,
@@ -37,6 +41,8 @@ if settings.cors_origins:
         allow_headers=["*"],
     )
 
+# Ensure upload directory exists for image assets
+# 画像アップロード用ディレクトリを確実に用意する
 upload_dir_path = Path(settings.upload_dir)
 upload_dir_path.mkdir(exist_ok=True)
 app.mount("/assets", StaticFiles(directory=str(upload_dir_path)), name="assets")
@@ -58,6 +64,7 @@ async def convert_markdown_to_pdf(
     orientation: Optional[str] = Form(None),
     margin: Optional[str] = Form(None),
     # Title page options
+    # タイトルページのオプション
     title_page: Optional[bool] = Form(None),
     title_text: Optional[str] = Form(None),
     title_date: Optional[str] = Form(None),
@@ -66,7 +73,8 @@ async def convert_markdown_to_pdf(
     try:
         if not markdown_content.strip():
             raise HTTPException(status_code=400, detail="Markdown content is required")
-        # Emoji shortcode handling
+        # Handle emoji shortcodes according to settings
+        # 絵文字ショートコードを設定に従って処理する
         if emoji_mode and emoji_lib:
             mode = (emoji_mode or "").lower()
             if mode in ("unicode", "on", "enable", "enabled"):
@@ -92,9 +100,13 @@ async def convert_markdown_to_pdf(
         if not output_filename.endswith('.pdf'):
             output_filename += '.pdf'
         
+        # Create output directory and prefix filename with UUID
+        # 出力ディレクトリを作成しファイル名にUUIDを付与する
         output_dir = Path(settings.output_dir)
         output_dir.mkdir(exist_ok=True)
         output_path = output_dir / f"{file_id}_{output_filename}"
+        # Generate the file with the configured PDF engine
+        # 設定されたPDFエンジンでファイルを生成する
         adapter = get_adapter(settings.pdf_engine)
         adapter.generate(html_content, output_path)
         
@@ -123,17 +135,21 @@ async def preview_markdown(
     orientation: Optional[str] = Form(None),
     margin: Optional[str] = Form(None),
     # Title page options
+    # タイトルページのオプション
     title_page: Optional[bool] = Form(None),
     title_text: Optional[str] = Form(None),
     title_date: Optional[str] = Form(None),
     title_name: Optional[str] = Form(None),
 ):
-    """Render Markdown to styled HTML for live preview."""
+    """Render Markdown to styled HTML for live preview.
+    ライブプレビュー用にMarkdownをHTMLへ変換するエンドポイント。
+    """
     try:
         if not markdown_content.strip():
             raise HTTPException(status_code=400, detail="Markdown content is required")
 
-        # Emoji shortcode handling
+        # Handle emoji shortcodes according to settings
+        # 絵文字ショートコードを設定に従って処理する
         if emoji_mode and emoji_lib:
             mode = (emoji_mode or "").lower()
             if mode in ("unicode", "on", "enable", "enabled"):
@@ -172,7 +188,8 @@ async def upload_and_convert_file(
         content = await file.read()
         markdown_content = content.decode('utf-8')
         
-        # Always let the server generate a new filename for PDFs
+        # Ignore client-supplied names so the server assigns unique filenames
+        # サーバー側で一意なファイル名を生成するためクライアントの名前は使用しない
         return await convert_markdown_to_pdf(
             markdown_content=markdown_content,
             filename=None,
@@ -184,17 +201,21 @@ async def upload_and_convert_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
+# Allowed image extensions for uploads
+# アップロードを許可する画像拡張子の一覧
 ALLOWED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 
 @app.post("/upload-image")
 async def upload_image(file: UploadFile = File(...)):
     try:
-        # Basic validation by extension; content validation is out-of-scope
+        # Perform basic extension validation (content validation is out of scope)
+        # 拡張子ベースで簡易的なバリデーションを行う（内容検証は対象外）
         ext = Path(file.filename).suffix.lower()
         if ext not in ALLOWED_IMAGE_EXTS:
             raise HTTPException(status_code=400, detail="Unsupported image format")
 
-        # Store with UUID to avoid collisions
+        # Use UUID to avoid filename collisions
+        # UUIDを使ってファイル名の衝突を避ける
         uid = uuid.uuid4().hex
         safe_name = f"{uid}{ext}"
         dest = upload_dir_path / safe_name
@@ -214,7 +235,8 @@ async def upload_image(file: UploadFile = File(...)):
 @app.get("/download/{filename}")
 async def download_pdf(filename: str):
     output_path = Path(settings.output_dir) / filename
-    
+    # Return 404 when the file does not exist
+    # ファイルが存在しない場合は404を返す
     if not output_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(
@@ -224,9 +246,13 @@ async def download_pdf(filename: str):
     )
 
 def _collapse_soft_newlines(md: str) -> str:
-    """Join single newlines inside normal paragraphs into spaces.
-    - Preserves blank-line paragraph breaks
-    - Leaves code fences/indented code, lists, headings, blockquotes, tables as-is
+    """Collapse single newlines within paragraphs into spaces.
+    段落内の単独の改行をスペースへ置き換える。
+
+    - Preserve blank-line paragraph breaks.
+    - 空行による段落区切りは維持する。
+    - Leave code fences, lists, headings, blockquotes, tables untouched.
+    - コードブロックやリスト、見出し、引用、表などはそのまま残す。
     """
     lines = md.splitlines()
     out_lines = []
@@ -273,8 +299,8 @@ def _collapse_soft_newlines(md: str) -> str:
             out_lines.append(line)
             continue
 
-        # If a list starts directly after a paragraph (no blank line),
-        # insert a blank line to ensure Markdown parser recognizes a list.
+        # Insert a blank line when a list follows a paragraph to aid parsing
+        # 段落の直後にリストが続く場合は空行を足してMarkdownパーサーにリストと認識させる
         if re_list.match(line):
             flush_para()
             if out_lines and out_lines[-1] != "":
@@ -282,7 +308,8 @@ def _collapse_soft_newlines(md: str) -> str:
             out_lines.append(line)
             continue
 
-        # normal paragraph line → buffer
+        # Buffer regular paragraph lines before collapsing
+        # 通常の段落行は一旦バッファに追加する
         para_buf.append(line)
 
     flush_para()
@@ -292,6 +319,7 @@ def _collapse_soft_newlines(md: str) -> str:
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-# Apply proxy settings as early as possible after app is created
+# Apply proxy configuration immediately after app creation when required
+# プロキシ設定が必要な場合はアプリ初期化直後に適用する
 if settings.apply_proxy_on_startup:
     apply_proxy_settings()

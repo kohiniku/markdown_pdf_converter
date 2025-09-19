@@ -165,7 +165,8 @@ def _load_theme_css_cached(
         else:
             css_parts.append(custom_css)
     except Exception:
-        # Custom CSS is optional; missing file is acceptable.
+        # Custom CSS is optional, so missing file is acceptable
+        # カスタムCSSは任意なので存在しなくても問題ない
         pass
 
     return "\n".join(css_parts)
@@ -354,22 +355,25 @@ def render_markdown_to_html(
     page_size: Optional[str] = None,
     orientation: Optional[str] = None,
     margin: Optional[str] = None,
-    # Title page options (for slide/cover page)
+    # Title page (cover) options
+    # タイトルページ（表紙相当）のオプション
     title_page: Optional[bool] = None,
     title_text: Optional[str] = None,
     title_date: Optional[str] = None,
     title_author: Optional[str] = None,
 ) -> Tuple[str, str]:
-    """Return (html_document, css) where html_document is a full HTML page.
+    """Render Markdown to full HTML plus CSS.
 
-    The Markdown pipeline is tuned to approximate GROWI v7 rendering behavior
-    (GFM-like lists, admonitions, tasklist, footnotes, tables, fences).
+    Tuned to mimic GROWI v7 styling.
+    HTML全文と適用CSSを返すMarkdownレンダリング関数。GROWI v7と近い見た目になるように拡張や整形処理を施している。
     """
 
     markdown_text = _replace_reserved_page_breaks(markdown_text)
 
-    # Normalize GitHub-style callouts and :::admonitions into !!! admonitions
-    # Also optionally collapse soft newlines inside admonition bodies if requested.
+    # Normalize GitHub-style callouts and ::: blocks into !!! admonitions
+    # GitHubスタイルのコールアウトや:::記法を!!!記法に正規化する
+    # Optionally collapse soft newlines inside admonitions
+    # 必要に応じてアドモニション内部のソフト改行もまとめる
     _collapse = (newline_to_space is True) or (
         newline_to_space is None and settings.newline_as_space
     )
@@ -401,14 +405,16 @@ def render_markdown_to_html(
         "codehilite": {"guess_lang": False, "linenums": False},
         "pymdownx.tasklist": {"custom_checkbox": True},
         "pymdownx.magiclink": {"repo_url_shortener": True, "hide_protocol": True},
-        # Add a visible permalink similar to GROWI's heading anchors
+        # Add permalinks similar to GROWI heading anchors
+        # GROWIの見出しアンカーと同等のパーマリンクを付与する
         "toc": {"permalink": True, "permalink_class": "gw-heading-anchor"},
     }
 
     html_body = md.markdown(markdown_text, extensions=extensions, extension_configs=extension_configs)
     html_body = _convert_deprecated_font_tags(html_body)
 
-    # Optional title page block (cover slide). Insert before markdown body.
+    # Prepend a title-page block when requested
+    # 必要なら表紙用のHTMLブロックを本文の前に差し込む
     title_block = _build_title_page_html(
         enabled=bool(title_page),
         title=title_text or "",
@@ -427,7 +433,8 @@ def render_markdown_to_html(
     resolved_orientation = orientation or settings.pdf_page_orientation_default
     resolved_margin = margin or settings.pdf_page_margin_default
 
-    # Page setup CSS (@page)
+    # Assemble @page rules for size and margins
+    # 用紙サイズや余白を指定する@pageルールを組み立てる
     page_css = _build_page_css(
         resolved_page_size,
         resolved_orientation,
@@ -719,11 +726,14 @@ def render_markdown_to_html(
 
 
 def _build_title_css(size: str, orientation: str, margin: str) -> str:
-    """CSS for the generated title page block.
+    """Build CSS for the generated title page block.
 
-    - Centers contents vertically on a single page in preview and print
-    - Forces a page break after the title block when printing
-    - Uses page var CSS custom properties for consistent sizing in preview
+    - Keep vertical centering for both preview and print.
+    - プレビューと印刷の両方で縦方向の中央揃えを維持する。
+    - Force a page break right after the title block when printing.
+    - 印刷時にはタイトルブロック直後で改ページさせる。
+    - Align preview sizing via CSS custom properties.
+    - CSSカスタムプロパティを使ってプレビュー時の見た目を揃える。
     """
     margin_spec = margin.strip() if margin else settings.pdf_page_margin_default
     margin_top, _, margin_bottom, _ = _expand_margin_shorthand(margin_spec)
@@ -794,7 +804,8 @@ def _build_title_page_html(*, enabled: bool, title: str, date: str, author: str)
     d = _format_title_field(date_value)
     a = _format_title_field(author_value)
 
-    # Render only if at least one field is provided
+    # Render only when at least one field is provided
+    # いずれかの項目が設定されているときだけ表紙を描画する
     if not (t or d or a):
         return ""
 
@@ -811,8 +822,10 @@ def _build_title_page_html(*, enabled: bool, title: str, date: str, author: str)
         parts.append("</div>")
     parts.append("</div></section>")
 
-    # No explicit gw-page-break needed in preview since min-height fills a page;
-    # print uses CSS break-after.
+    # Preview already reserves page height, so no gw-page-break is needed
+    # プレビューでは高さを確保しているためgw-page-breakは不要
+    # Printing splits pages via CSS break-after
+    # 印刷時はCSSのbreak-afterでページ分割する
     return "".join(parts)
 
 
@@ -821,7 +834,8 @@ def _build_page_css(size: str, orientation: str, margin: str) -> str:
     orient = (orientation or "portrait").strip().lower()
     if orient not in ("portrait", "landscape"):
         orient = "portrait"
-    # Allow combined values like "A4 landscape"
+    # Support combined forms like "A4 landscape"
+    # "A4 landscape"のような複合指定にも対応する
     if "landscape" in size or "portrait" in size:
         size_spec = size
     else:
@@ -856,7 +870,8 @@ def _build_page_vars_css(size: str, orientation: str, margin: str) -> str:
 
 def _page_dimensions_mm(size: str) -> tuple[float, float]:
     s = (size or "A4").strip().lower()
-    # map common sizes (width x height in mm, portrait)
+    # Map common paper sizes (width × height mm, portrait)
+    # 一般的な用紙サイズ（幅×高さ[mm]、縦向き）を対応付ける
     sizes = {
         "a3": (297.0, 420.0),
         "a4": (210.0, 297.0),
@@ -864,9 +879,10 @@ def _page_dimensions_mm(size: str) -> tuple[float, float]:
         "letter": (215.9, 279.4),  # 8.5 x 11 in
         "legal": (215.9, 355.6),   # 8.5 x 14 in
     }
-    # Support combined forms like "A4 landscape" by stripping the word
+    # Strip trailing orientation keywords such as "landscape"
+    # "A4 landscape"などの表記では末尾の単語を除去して検索する
     base = s.replace("landscape", "").replace("portrait", "").strip()
-    return sizes.get(base, sizes["a4"])  # default A4
+    return sizes.get(base, sizes["a4"])  # Default to A4 when not found
 
 
 def _mm_to_px(mm: float) -> int:
@@ -929,7 +945,8 @@ def _replace_reserved_page_breaks(md: str) -> str:
                 out.append("")
             out.append('<div class="gw-page-break"></div>')
             i += 1
-            # ensure a blank line separates the break from following content when needed
+            # Insert a blank line after the page-break marker when needed
+            # 必要に応じて改ページマーカーと後続コンテンツの間に空行を挿入する
             if i < n and lines[i].strip() != "":
                 out.append("")
             continue
@@ -976,13 +993,19 @@ class _ImageWidthNormalizer(HTMLParser):
     def handle_decl(self, decl: str) -> None:
         self._chunks.append(f"<!{decl}>")
 
-    def unknown_decl(self, data: str) -> None:  # pragma: no cover - rare
+    # pragma: no cover - rare case
+    # 稀なケース
+    def unknown_decl(self, data: str) -> None:
         self._chunks.append(f"<![{data}]>")
 
-    def handle_pi(self, data: str) -> None:  # pragma: no cover - rare
+    # pragma: no cover - rare case
+    # 稀なケース
+    def handle_pi(self, data: str) -> None:
         self._chunks.append(f"<?{data}>")
 
-    def error(self, message: str) -> None:  # pragma: no cover - compatibility hook
+    # pragma: no cover - compatibility hook
+    # 互換性維持用のフック
+    def error(self, message: str) -> None:
         return
 
     def get_html(self) -> str:
@@ -1085,11 +1108,10 @@ def _quote_attr(value: str) -> str:
 
 
 def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
-    """Convert common admonition syntaxes to Python-Markdown's !!! form.
+    """Normalize major admonition syntaxes to Python-Markdown's !!! form.
 
-    Supports:
-    - GitHub callouts: blockquotes with "> [!NOTE]" etc.
-    - Triple-colon blocks: ":::note" ... ":::"
+    Supports GitHub callouts ("> [!NOTE]") and triple-colon blocks.
+    主要なアドモニション記法をPython-Markdownの!!!形式にそろえ、GitHub系コールアウトとトリプルコロン記法に対応する。
     """
     if not md:
         return md
@@ -1099,7 +1121,8 @@ def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
 
     import re
 
-    # GitHub callouts inside blockquotes
+    # Process GitHub-style callouts inside blockquotes
+    # 引用ブロック内のGitHubスタイルコールアウトを処理する
     callout_re = re.compile(r"^\s*>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|DANGER|INFO)\]\s*(.*)$", re.I)
 
     i = 0
@@ -1108,9 +1131,11 @@ def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
         m = callout_re.match(lines[i])
         if m:
             kind = m.group(1).lower()
-            # Gather following blockquote lines that are part of this block
+            # Gather subsequent quoted lines belonging to the callout
+            # 同じコールアウトに含まれる後続の引用行を集める
             content: list[str] = []
-            # First line may have trailing text after the tag, but typical syntax doesn't.
+            # The first line may carry trailing text beyond the tag
+            # 先頭行にはタグの後に文章が続く場合があるが基本は空
             trailing = m.group(2).strip()
             if trailing:
                 content.append(trailing)
@@ -1120,28 +1145,36 @@ def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
                 ln = lines[i]
                 if not ln.lstrip().startswith('>'):
                     break
-                # Strip one leading ">" and one optional space
+                # Strip the leading '>' and optional space
+                # 先頭の">"と任意のスペース1つを取り除く
                 stripped = ln.lstrip()[1:]
                 if stripped.startswith(' '):
                     stripped = stripped[1:]
                 content.append(stripped)
                 i += 1
 
-            # Optionally collapse lines within admon content
+            # Collapse admonition body lines when requested
+            # 必要に応じてアドモニション本文の改行をまとめる
             if collapse_inside and content:
                 content = _collapse_inside_block(content)
 
-            # Emit !!! admonition with indented content
+            # Convert to !!! syntax and indent body content
+            # !!! 記法に変換し本文にはインデントを付与する
             out.append(f"!!! {kind}")
             for c in content:
                 out.append(f"    {c}")
-            continue  # skip increment; already advanced i
+            # Do not advance index here; it was already moved above
+            # ここでインデックスは進めず、それまでに更新した位置を使う
+            continue
 
-        # Triple-colon admonitions :::note ... :::
+        # Handle :::note ... ::: style admonitions
+        # :::note ... ::: 形式のアドモニションを処理する
         if lines[i].lstrip().startswith(':::'):
-            # Parse opening
+            # Parse the opening definition line to extract type and title
+            # 先頭の定義行を解析して種別とタイトルを取り出す
             opener = lines[i].lstrip()[3:].strip()
-            # opener can be like 'note', 'note Title', etc.
+            # Support variants such as 'note' or 'note Title'
+            # 'note' や 'note タイトル' といったバリエーションに対応する
             if opener:
                 parts = opener.split(None, 1)
                 typ = parts[0].lower()
@@ -1156,7 +1189,8 @@ def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
             while i < n and not lines[i].lstrip().startswith(':::'):
                 body.append(lines[i])
                 i += 1
-            # Skip closing ':::' if present
+            # Skip the closing ':::' marker if present
+            # 終端の':::'があれば読み飛ばす
             if i < n and lines[i].lstrip().startswith(':::'):
                 i += 1
 
@@ -1168,7 +1202,8 @@ def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
                 out.append(f"    {b}")
             continue
 
-        # Default: passthrough
+        # Otherwise pass the line through unchanged
+        # どちらにも該当しない場合はそのまま出力する
         out.append(lines[i])
         i += 1
 
@@ -1179,7 +1214,8 @@ def _strip_admonition_title_leading_emoji(title: str | None) -> str | None:
     if not title:
         return title
     t = title.strip()
-    # Known emoji prefixes used in our CSS map or common aliases
+    # Known emoji prefixes used in our CSS or common aliases
+    # CSS側で利用している、または一般的な絵文字プレフィクスの一覧
     prefixes = [
         "⚠", "❗", "ℹ", "✎", "💡", "⛔",
         ":warning:", ":info:", ":bulb:", ":pencil:", ":exclamation:", ":no_entry:",
@@ -1194,8 +1230,8 @@ def _strip_admonition_title_leading_emoji(title: str | None) -> str | None:
 def _collapse_inside_block(lines: list[str]) -> list[str]:
     """Collapse soft newlines within a block while preserving blank lines.
 
-    Uses the same rules as collapse_soft_newlines but operates on a list of lines
-    that are not yet indented (admonition body before indentation).
+    Mirrors collapse_soft_newlines for pre-indented admonition content.
+    空行を保ちながらブロック内の柔らかい改行を詰める（collapse_soft_newlinesと同じ判定をインデント前のアドモニション本文に適用）。
     """
     text = "\n".join(lines)
     collapsed = collapse_soft_newlines(text)
