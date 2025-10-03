@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 /// <reference types="vitest" />
-import App from './App';
+import App, { MAX_IMAGE_SIZE_BYTES, MAX_IMAGE_SIZE_MB } from './App';
 
 // Mock global fetch for tests
 // グローバルなfetchをモック化する
@@ -23,9 +23,17 @@ describe('App Component', () => {
     (g.fetch as any).mockClear();
     // By default, preview endpoint returns simple HTML
     // デフォルトではプレビューAPIがシンプルなHTMLを返す想定
-    g.fetch.mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve('<html><body><h1>Preview</h1></body></html>'),
+    g.fetch.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/upload-image')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ url: '/assets/uploaded.png' }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        text: () => Promise.resolve('<html><body><h1>Preview</h1></body></html>'),
+      });
     });
   });
 
@@ -100,5 +108,59 @@ describe('App Component', () => {
     fireEvent.click(screen.getByText(/Convert to PDF/i));
 
     await waitFor(() => expect(screen.getByText(/PDF Generated Successfully!/i)).toBeInTheDocument());
+  });
+
+  test('drops image into editor inserts markdown snippet', async () => {
+    (g.fetch as any).mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/upload-image')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ url: '/assets/test.png' }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        text: () => Promise.resolve('<html></html>'),
+      });
+    });
+
+    render(<App />);
+    const textarea = screen.getByPlaceholderText(/Enter your Markdown content here/i) as HTMLTextAreaElement;
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'sample.png', { type: 'image/png' });
+
+    fireEvent.drop(textarea, {
+      dataTransfer: {
+        files: [file],
+        types: ['Files'],
+      },
+    });
+
+    await waitFor(() => expect(textarea.value).toContain('![sample](/assets/test.png)'));
+    expect(g.fetch).toHaveBeenCalledWith(
+      '/upload-image',
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+
+  test('shows error when dropped image exceeds size limit', async () => {
+    render(<App />);
+    const textarea = screen.getByPlaceholderText(/Enter your Markdown content here/i);
+    const bigFile = new File([new Uint8Array([0])], 'huge.png', { type: 'image/png' });
+    Object.defineProperty(bigFile, 'size', { value: MAX_IMAGE_SIZE_BYTES + 1 });
+
+    fireEvent.drop(textarea, {
+      dataTransfer: {
+        files: [bigFile],
+        types: ['Files'],
+      },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(new RegExp(`Images larger than ${MAX_IMAGE_SIZE_MB} MB`))).toBeInTheDocument()
+    );
+    expect(g.fetch).not.toHaveBeenCalledWith(
+      '/upload-image',
+      expect.anything()
+    );
   });
 });

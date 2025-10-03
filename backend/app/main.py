@@ -219,11 +219,33 @@ async def upload_image(file: UploadFile = File(...)):
         uid = uuid.uuid4().hex
         safe_name = f"{uid}{ext}"
         dest = upload_dir_path / safe_name
-        content = await file.read()
-        if len(content) > settings.max_file_size:
-            raise HTTPException(status_code=413, detail="Image too large")
+        max_bytes = settings.max_file_size
+        chunk_size = max(1, min(1024 * 1024, max_bytes))
+        total_bytes = 0
+        too_large = False
+
         async with aiofiles.open(dest, 'wb') as out:
-            await out.write(content)
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                if total_bytes > max_bytes:
+                    too_large = True
+                    break
+                await out.write(chunk)
+
+        if too_large:
+            await file.close()
+            dest.unlink(missing_ok=True)
+            raise HTTPException(status_code=413, detail="Image too large")
+
+        if total_bytes == 0:
+            await file.close()
+            dest.unlink(missing_ok=True)
+            raise HTTPException(status_code=400, detail="Empty file is not allowed")
+
+        await file.close()
 
         url = f"/assets/{safe_name}"
         return {"success": True, "url": url, "filename": file.filename}

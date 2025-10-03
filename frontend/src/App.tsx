@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FileText, Download, Upload, Moon, Sun } from 'lucide-react';
 import './App.css';
 
+export const MAX_IMAGE_SIZE_MB = 10;
+export const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+
 interface ConversionResult {
   success: boolean;
   message: string;
@@ -376,7 +379,16 @@ function App() {
                   // 画像以外は外側のドロップゾーンで処理させる
                   if (!img) return;
                   e.preventDefault();
+                  if (img.size === 0) {
+                    setError('Image file is empty');
+                    return;
+                  }
+                  if (img.size > MAX_IMAGE_SIZE_BYTES) {
+                    setError(`Images larger than ${MAX_IMAGE_SIZE_MB} MB are not supported`);
+                    return;
+                  }
                   try {
+                    setError('');
                     const fd = new FormData();
                     fd.append('file', img);
                     const res = await fetch('/upload-image', { method: 'POST', body: fd });
@@ -389,22 +401,26 @@ function App() {
                     const alt = img.name.replace(/\.[^.]+$/, '');
                     const snippet = `![${alt}](${url})`;
                     if (el) {
-                      const start = el.selectionStart || 0;
-                      const end = el.selectionEnd || 0;
-                      const before = markdownContent.slice(0, start);
-                      const after = markdownContent.slice(end);
-                      const needsBreakBefore = before && !before.endsWith('\n');
-                      const prefix = needsBreakBefore ? '\n' : '';
-                      const newText = `${before}${prefix}${snippet}\n${after}`;
+                      const currentValue = el.value ?? '';
+                      const start = el.selectionStart ?? currentValue.length;
+                      const end = el.selectionEnd ?? start;
+                      const before = currentValue.slice(0, start);
+                      const after = currentValue.slice(end);
+                      const needsBreakBefore = before.length > 0 && !before.endsWith('\n');
+                      const insertion = `${needsBreakBefore ? '\n' : ''}${snippet}\n`;
+                      const newText = `${before}${insertion}${after}`;
                       setMarkdownContent(newText);
-                      // Restore caret so the insertion feels natural
-                      // 挿入後もキャレット位置が自然になるよう復元する
-                      const newPos = (before + prefix + snippet + '\n').length;
-                      setTimeout(() => { if (el) el.setSelectionRange(newPos, newPos); el?.focus(); }, 0);
+                      const newPos = before.length + insertion.length;
+                      setTimeout(() => {
+                        const textarea = textareaRef.current;
+                        if (textarea) {
+                          textarea.setSelectionRange(newPos, newPos);
+                          textarea.focus();
+                        }
+                      }, 0);
                     } else {
-                      setMarkdownContent((t) => (t ? t + `\n${snippet}\n` : snippet + '\n'));
+                      setMarkdownContent((t) => (t ? `${t}\n${snippet}\n` : `${snippet}\n`));
                     }
-                    setError('');
                   } catch (err) {
                     setError(err instanceof Error ? err.message : 'Image drop failed');
                   }
