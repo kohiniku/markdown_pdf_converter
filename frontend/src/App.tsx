@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, Download, Upload, Moon, Sun } from 'lucide-react';
+import { FileText, Download, Upload, Moon, Sun, Lightbulb } from 'lucide-react';
 import './App.css';
 
 export const MAX_IMAGE_SIZE_MB = 10;
@@ -142,6 +142,104 @@ function App() {
     setDragOver(false);
   };
 
+  const isImageFile = (file: File) =>
+    file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name);
+
+  const selectImageFile = (files: FileList | File[]) =>
+    Array.from(files).find((f) => isImageFile(f));
+
+  const deriveAltText = (file: File, fallback = 'pasted-image') => {
+    const base = file.name ? file.name.replace(/\.[^.]+$/, '') : '';
+    const trimmed = (base || fallback).trim();
+    return trimmed || fallback;
+  };
+
+  const insertImageMarkdown = (url: string, altText: string) => {
+    const snippet = `![${altText}](${url})`;
+    const el = textareaRef.current;
+    if (el) {
+      const currentValue = el.value ?? '';
+      const start = el.selectionStart ?? currentValue.length;
+      const end = el.selectionEnd ?? start;
+      const before = currentValue.slice(0, start);
+      const after = currentValue.slice(end);
+      const needsBreakBefore = before.length > 0 && !before.endsWith('\n');
+      const insertion = `${needsBreakBefore ? '\n' : ''}${snippet}\n`;
+      const newText = `${before}${insertion}${after}`;
+      setMarkdownContent(newText);
+      const newPos = before.length + insertion.length;
+      setTimeout(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+          textarea.setSelectionRange(newPos, newPos);
+          textarea.focus();
+        }
+      }, 0);
+    } else {
+      setMarkdownContent((text) => (text ? `${text}\n${snippet}\n` : `${snippet}\n`));
+    }
+  };
+
+  const uploadAndInsertImage = async (file: File, altHint?: string) => {
+    if (file.size === 0) {
+      throw new Error('Image file is empty');
+    }
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      throw new Error(`Images larger than ${MAX_IMAGE_SIZE_MB} MB are not supported`);
+    }
+    const formData = new FormData();
+    const sanitizedHint = (altHint || 'pasted-image')
+      .replace(/[^a-zA-Z0-9_-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    const fallbackName = file.name && file.name.trim().length > 0
+      ? file.name
+      : `${sanitizedHint || 'pasted-image'}.png`;
+    formData.append('file', file, fallbackName);
+    const res = await fetch('/upload-image', { method: 'POST', body: formData });
+    if (!res.ok) {
+      throw new Error('Image upload failed');
+    }
+    const data = await res.json();
+    const url: string = data.url;
+    const altBase = altHint ?? deriveAltText(file);
+    insertImageMarkdown(url, altBase || 'pasted-image');
+  };
+
+  const extractClipboardImage = (data: DataTransfer | null): File | null => {
+    if (!data) return null;
+    if (data.files && data.files.length) {
+      const viaFiles = selectImageFile(data.files);
+      if (viaFiles) return viaFiles;
+    }
+    if (data.items && data.items.length) {
+      for (const item of Array.from(data.items)) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const maybe = item.getAsFile();
+          if (maybe) return maybe;
+        }
+      }
+    }
+    return null;
+  };
+
+  const handleClipboardPaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const clipboardData = event.clipboardData;
+    if (!clipboardData) return;
+    const imageFile = extractClipboardImage(clipboardData);
+    if (!imageFile) return;
+
+    event.preventDefault();
+    try {
+      setError('');
+      const alt = deriveAltText(imageFile, 'pasted-image');
+      await uploadAndInsertImage(imageFile, alt);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Image paste failed';
+      setError(message === 'Image upload failed' ? 'Image paste failed' : message);
+    }
+  };
+
   const downloadPDF = async () => {
     if (!result) return;
     try {
@@ -210,7 +308,7 @@ function App() {
         */}
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <FileText className="w-8 h-8" style={{ color: 'var(--primary)' }} />
+            <FileText className="icon-xl" style={{ color: 'var(--primary)' }} aria-hidden="true" />
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>
               Markdown to PDF Converter
             </h1>
@@ -366,66 +464,45 @@ function App() {
                 onChange={(e) => setMarkdownContent(e.target.value)}
                 placeholder="Enter your Markdown content here..."
                 className="input textarea w-full"
+                onPaste={handleClipboardPaste}
                 onDragOver={(e) => {
                   // Allow dropping image files directly onto the editor
                   // エディタ上に直接画像ファイルをドロップできるようにする
-                  if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+                  if (e.dataTransfer?.types?.includes('Files')) e.preventDefault();
                 }}
                 onDrop={async (e) => {
-                  if (!e.dataTransfer?.files?.length) return;
-                  const files = Array.from(e.dataTransfer.files);
-                  const img = files.find((f) => /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
-                  // Non-image drops are handled by the outer drop zone
-                  // 画像以外は外側のドロップゾーンで処理させる
-                  if (!img) return;
+                  const dataTransfer = e.dataTransfer;
+                  if (!dataTransfer) return;
+                  const imageFile = extractClipboardImage(dataTransfer);
+                  if (!imageFile) return;
                   e.preventDefault();
-                  if (img.size === 0) {
-                    setError('Image file is empty');
-                    return;
-                  }
-                  if (img.size > MAX_IMAGE_SIZE_BYTES) {
-                    setError(`Images larger than ${MAX_IMAGE_SIZE_MB} MB are not supported`);
-                    return;
-                  }
                   try {
                     setError('');
-                    const fd = new FormData();
-                    fd.append('file', img);
-                    const res = await fetch('/upload-image', { method: 'POST', body: fd });
-                    if (!res.ok) throw new Error('Image upload failed');
-                    const data = await res.json();
-                    const url: string = data.url;
-                    // Insert Markdown image link at the caret position
-                    // キャレット位置にMarkdown形式の画像リンクを挿入する
-                    const el = textareaRef.current;
-                    const alt = img.name.replace(/\.[^.]+$/, '');
-                    const snippet = `![${alt}](${url})`;
-                    if (el) {
-                      const currentValue = el.value ?? '';
-                      const start = el.selectionStart ?? currentValue.length;
-                      const end = el.selectionEnd ?? start;
-                      const before = currentValue.slice(0, start);
-                      const after = currentValue.slice(end);
-                      const needsBreakBefore = before.length > 0 && !before.endsWith('\n');
-                      const insertion = `${needsBreakBefore ? '\n' : ''}${snippet}\n`;
-                      const newText = `${before}${insertion}${after}`;
-                      setMarkdownContent(newText);
-                      const newPos = before.length + insertion.length;
-                      setTimeout(() => {
-                        const textarea = textareaRef.current;
-                        if (textarea) {
-                          textarea.setSelectionRange(newPos, newPos);
-                          textarea.focus();
-                        }
-                      }, 0);
-                    } else {
-                      setMarkdownContent((t) => (t ? `${t}\n${snippet}\n` : `${snippet}\n`));
-                    }
+                    const alt = deriveAltText(imageFile, 'pasted-image');
+                    await uploadAndInsertImage(imageFile, alt);
                   } catch (err) {
-                    setError(err instanceof Error ? err.message : 'Image drop failed');
+                    const message = err instanceof Error ? err.message : 'Image drop failed';
+                    setError(message === 'Image upload failed' ? 'Image drop failed' : message);
                   }
                 }}
               />
+              <div className="editor-tips" role="note">
+                <h3 className="editor-tips__title">
+                  <Lightbulb className="editor-tips__icon" aria-hidden="true" />
+                  エディタのヒント
+                </h3>
+                <ul className="editor-tips__list">
+                  <li>チェックリストは <code>- [ ]</code> や <code>- [x]</code> を行頭に付与</li>
+                  <li>ページ分割したい場所には <code>[[PAGEBREAK]]</code></li>
+                  <li>画像を小さくしたいときは <code>{'{width=50%}'}</code> を末尾に付与</li>
+                  <li>文字色を変えたいときは<br></br><code>&lt;span style="color:red"&gt; (内容) &lt;/span&gt;</code><br></br></li>
+                  <li>注意書きは <br></br> <code>:::note (タイトル) <br></br> (内容) <br></br> :::</code></li>
+                    <ul className="editor-tips__list">
+                      <li>noteのほかにはtip/warning/caution/infoがある </li>
+                    </ul>
+                  <li>(エンジニア向け)Bootstrapも利用可能</li>
+                </ul>
+              </div>
             </div>
 
             {/*
@@ -480,7 +557,7 @@ function App() {
                     onClick={downloadPDF}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="icon-button" aria-hidden="true" />
                     Download
                   </button>
                 </div>

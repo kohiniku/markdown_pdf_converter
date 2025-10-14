@@ -142,6 +142,53 @@ describe('App Component', () => {
     );
   });
 
+  test('pasting clipboard image inserts markdown snippet', async () => {
+    (g.fetch as any).mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/upload-image')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ url: '/assets/pasted.png' }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        text: () => Promise.resolve('<html></html>'),
+      });
+    });
+
+    render(<App />);
+    const textarea = screen.getByPlaceholderText(/Enter your Markdown content here/i) as HTMLTextAreaElement;
+    const clipboardFile = new File([new Uint8Array([137, 80, 78, 71])], 'clipboard.png', {
+      type: 'image/png',
+    });
+
+    fireEvent.paste(textarea, {
+      clipboardData: {
+        files: [clipboardFile],
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => clipboardFile,
+          },
+        ],
+        types: ['Files'],
+      },
+    });
+
+    await waitFor(() => expect(textarea.value).toContain('![clipboard](/assets/pasted.png)'));
+    expect(g.fetch).toHaveBeenCalledWith(
+      '/upload-image',
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+
+  test('editor tips are visible near markdown textarea', () => {
+    render(<App />);
+    expect(screen.getByText(/チェックリストを作りたいときは/)).toBeInTheDocument();
+    expect(screen.getAllByText(/\[\[PAGEBREAK\]\]/i).length).toBeGreaterThan(0);
+  });
+
   test('shows error when dropped image exceeds size limit', async () => {
     render(<App />);
     const textarea = screen.getByPlaceholderText(/Enter your Markdown content here/i);

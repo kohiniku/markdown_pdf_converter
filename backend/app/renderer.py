@@ -284,7 +284,8 @@ def collapse_soft_newlines(text: str) -> str:
     if not text:
         return text
     lines = text.splitlines()
-    out, buf = [], []
+    out = []
+    buf: list[tuple[str, bool]] = []
 
     import re
 
@@ -301,9 +302,27 @@ def collapse_soft_newlines(text: str) -> str:
 
     def flush():
         nonlocal buf
-        if buf:
-            out.append(" ".join(s.strip() for s in buf))
-            buf = []
+        if not buf:
+            return
+
+        paragraph_parts: list[str] = []
+        for content, hard_break in buf:
+            stripped = content.strip()
+            if stripped:
+                paragraph_parts.append(stripped)
+            if hard_break:
+                combined = " ".join(paragraph_parts)
+                if combined:
+                    out.append(combined + "  ")
+                else:
+                    out.append("  ")
+                paragraph_parts = []
+
+        if paragraph_parts:
+            combined = " ".join(paragraph_parts)
+            out.append(combined)
+
+        buf = []
 
     in_fence = False
     for raw in lines:
@@ -340,7 +359,9 @@ def collapse_soft_newlines(text: str) -> str:
             out.append(line)
             continue
 
-        buf.append(line)
+        trailing_spaces = len(line) - len(line.rstrip(" "))
+        hard_break = trailing_spaces >= 2
+        buf.append((line, hard_break))
 
     flush()
     return "\n".join(out)

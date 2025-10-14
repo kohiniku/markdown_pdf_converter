@@ -36,6 +36,15 @@ def test_image_width_with_percentage_is_preserved():
     assert re.search(r"style=\"[^\"]*width:50%;", html)
 
 
+def test_double_space_line_break_preserved_when_collapsed():
+    html, _ = renderer.render_markdown_to_html(
+        "First line  \nSecond line",
+        newline_to_space=True,
+    )
+    assert "First line<br />" in html
+    assert "Second line" in html
+
+
 def _expected_available_height_px() -> int:
     page_size = renderer.settings.pdf_page_size_default
     orientation = renderer.settings.pdf_page_orientation_default

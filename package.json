@@ -1,0 +1,21 @@
+{
+  "name": "markdown_pdf_converter",
+  "version": "1.0.0",
+  "description": "A modern web application that converts Markdown text to PDF documents with a clean, professional design. Built with React frontend and FastAPI backend.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kohiniku/markdown_pdf_converter.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kohiniku/markdown_pdf_converter/issues"
+  },
+  "homepage": "https://github.com/kohiniku/markdown_pdf_converter#readme"
+}
