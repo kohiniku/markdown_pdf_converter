@@ -301,7 +301,10 @@ function App() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div
+        className="container mx-auto px-6 py-8"
+        style={{ maxWidth: '1400px' }}
+      >
         {/*
           Header
           ヘッダー
@@ -323,7 +326,7 @@ function App() {
           </button>
         </header>
 
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:[grid-template-columns:1.1fr_1.4fr] 2xl:[grid-template-columns:1fr_1.6fr]">
+        <div className="grid grid-cols-1 gap-8 md:[grid-template-columns:1fr_1.8fr]">
           {/*
             Input Area
             入力エリア
@@ -515,7 +518,7 @@ function App() {
             Output Area
             出力エリア
           */}
-          <div className="space-y-6 min-w-0">
+          <div className="flex min-w-0 h-full flex-col gap-6">
             {/*
               Convert Button
               変換ボタン
@@ -523,7 +526,7 @@ function App() {
             <button
               onClick={handleConvert}
               disabled={isLoading || !markdownContent.trim()}
-              className="button-primary w-full py-4 text-lg font-semibold"
+              className="button-primary w-full py-4 text-lg font-semibold shrink-0"
             >
               {isLoading ? 'Converting...' : 'Convert to PDF'}
             </button>
@@ -568,22 +571,24 @@ function App() {
               Live Preview
               ライブプレビュー
             */}
-            <div className="card">
+            <div className="card flex min-h-[720px] flex-1 flex-col">
               <h2 className="text-lg font-semibold mb-4">Preview</h2>
               {isPreviewLoading && (
                 <p className="text-sm" style={{ color: 'var(--muted)' }}>Rendering preview…</p>
               )}
-              {previewHtml ? (
-                <iframe
-                  title="preview"
-                  className="preview-frame"
-                  srcDoc={previewHtml}
-                />
-              ) : (
-                <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                  Start typing Markdown to see a live preview here.
-                </p>
-              )}
+              <div className="flex-1 min-h-0">
+                {previewHtml ? (
+                  <iframe
+                    title="preview"
+                    className="preview-frame"
+                    srcDoc={previewHtml}
+                  />
+                ) : (
+                  <div className="preview-placeholder">
+                    Start typing Markdown to see a live preview here.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
