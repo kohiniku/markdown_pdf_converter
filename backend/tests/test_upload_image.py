@@ -1,6 +1,8 @@
+from io import BytesIO
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app.config import settings
 from app.main import app
@@ -27,6 +29,26 @@ def test_upload_image_and_serve_static():
     res2 = client.get(url)
     assert res2.status_code == 200
     assert res2.headers.get("content-type", "").startswith("image/")
+
+
+def test_large_raster_image_is_downscaled_and_compressed(tmp_path):
+    img = Image.effect_noise((2400, 1800), 64).convert("RGB")
+    original_buffer = BytesIO()
+    img.save(original_buffer, format="JPEG", quality=95)
+    original_bytes = original_buffer.getvalue()
+
+    files = {"file": ("big.jpg", original_bytes, "image/jpeg")}
+    res = client.post("/upload-image", files=files)
+    assert res.status_code == 200
+    data = res.json()
+    saved_path = Path(settings.upload_dir) / Path(data["url"]).name
+    assert saved_path.exists()
+
+    saved_bytes = saved_path.read_bytes()
+    assert len(saved_bytes) < len(original_bytes)
+
+    # cleanup uploaded file to keep workspace tidy
+    saved_path.unlink(missing_ok=True)
 
 
 def test_upload_image_rejects_large_files():

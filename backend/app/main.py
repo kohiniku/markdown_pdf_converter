@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 import os
 import tempfile
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
 import aiofiles
@@ -13,6 +14,12 @@ try:
     import emoji as emoji_lib
 except Exception:
     emoji_lib = None
+
+try:
+    from PIL import Image, ImageOps
+except Exception:  # pragma: no cover - dependency missing would disable compression
+    Image = None
+    ImageOps = None
 
 from app.config import settings, apply_proxy_settings
 from app.database import engine
@@ -204,6 +211,7 @@ async def upload_and_convert_file(
 # Allowed image extensions for uploads
 # アップロードを許可する画像拡張子の一覧
 ALLOWED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+MAX_IMAGE_EDGE_PX = 1920
 
 @app.post("/upload-image")
 async def upload_image(file: UploadFile = File(...)):
@@ -214,38 +222,28 @@ async def upload_image(file: UploadFile = File(...)):
         if ext not in ALLOWED_IMAGE_EXTS:
             raise HTTPException(status_code=400, detail="Unsupported image format")
 
-        # Use UUID to avoid filename collisions
-        # UUIDを使ってファイル名の衝突を避ける
+        contents = await file.read()
+        await file.close()
+
+        if not contents:
+            raise HTTPException(status_code=400, detail="Empty file is not allowed")
+
+        if len(contents) > settings.max_file_size:
+            raise HTTPException(status_code=413, detail="Image too large")
+
+        # Compress raster images to reduce memory usage on preview/PDF generation
+        # プレビューやPDF生成時の負荷を下げるため、ラスター画像は圧縮・リサイズする
+        if ext != ".svg":
+            optimized = _compress_image_bytes(contents, ext)
+            if optimized and len(optimized) < len(contents):
+                contents = optimized
+
         uid = uuid.uuid4().hex
         safe_name = f"{uid}{ext}"
         dest = upload_dir_path / safe_name
-        max_bytes = settings.max_file_size
-        chunk_size = max(1, min(1024 * 1024, max_bytes))
-        total_bytes = 0
-        too_large = False
 
-        async with aiofiles.open(dest, 'wb') as out:
-            while True:
-                chunk = await file.read(chunk_size)
-                if not chunk:
-                    break
-                total_bytes += len(chunk)
-                if total_bytes > max_bytes:
-                    too_large = True
-                    break
-                await out.write(chunk)
-
-        if too_large:
-            await file.close()
-            dest.unlink(missing_ok=True)
-            raise HTTPException(status_code=413, detail="Image too large")
-
-        if total_bytes == 0:
-            await file.close()
-            dest.unlink(missing_ok=True)
-            raise HTTPException(status_code=400, detail="Empty file is not allowed")
-
-        await file.close()
+        async with aiofiles.open(dest, "wb") as out:
+            await out.write(contents)
 
         url = f"/assets/{safe_name}"
         return {"success": True, "url": url, "filename": file.filename}
@@ -266,6 +264,53 @@ async def download_pdf(filename: str):
         filename=filename,
         media_type="application/pdf"
     )
+
+
+def _compress_image_bytes(data: bytes, ext: str) -> bytes:
+    if Image is None or ImageOps is None:
+        return data
+
+    try:
+        with Image.open(BytesIO(data)) as img:
+            if getattr(img, "is_animated", False):
+                return data
+
+            img = ImageOps.exif_transpose(img)
+
+            # Downscale large images while preserving aspect ratio
+            # 縦横いずれかが閾値を超える場合は縦横比を保ったまま縮小する
+            if max(img.size) > MAX_IMAGE_EDGE_PX:
+                img.thumbnail((MAX_IMAGE_EDGE_PX, MAX_IMAGE_EDGE_PX), Image.LANCZOS)
+
+            buffer = BytesIO()
+            save_params: dict[str, object] = {}
+            format_hint = img.format or ext.lstrip(".").upper()
+
+            if ext in {".jpg", ".jpeg"}:
+                if img.mode not in ("RGB", "L"):
+                    img = img.convert("RGB")
+                save_params.update({"quality": 85, "optimize": True, "progressive": True})
+                target_format = "JPEG"
+            elif ext == ".png":
+                if img.mode not in ("RGB", "RGBA", "L", "LA", "P"):
+                    img = img.convert("RGBA")
+                save_params.update({"optimize": True})
+                target_format = "PNG"
+            elif ext == ".webp":
+                if img.mode not in ("RGB", "RGBA"):
+                    img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
+                save_params.update({"quality": 80, "method": 6})
+                target_format = "WEBP"
+            else:
+                return data
+
+            img.save(buffer, format=target_format, **save_params)
+            optimized = buffer.getvalue()
+            if 0 < len(optimized) < len(data):
+                return optimized
+    except Exception:
+        return data
+    return data
 
 def _collapse_soft_newlines(md: str) -> str:
     """Collapse single newlines within paragraphs into spaces.
