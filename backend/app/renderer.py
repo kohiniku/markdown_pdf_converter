@@ -14,6 +14,15 @@ import markdown as md
 from app.config import settings
 
 
+_PREVIEW_PAGE_SIZE_ALIASES = {"preview", "preview use", "preview-use"}
+
+
+def is_preview_flow_size(page_size: Optional[str]) -> bool:
+    if not page_size:
+        return False
+    return page_size.strip().lower() in _PREVIEW_PAGE_SIZE_ALIASES
+
+
 _FALLBACK_BOOTSTRAP_CSS = (
     ".text-primary{color:#0d6efd!important;}\n"
     ".text-secondary{color:#6c757d!important;}\n"
@@ -450,13 +459,18 @@ def render_markdown_to_html(
     base_size = font_size_px if font_size_px is not None else settings.pdf_base_font_size
     base_css = f"body{{font-size:{base_size}px}}\n" if base_size else ""
 
-    resolved_page_size = page_size or settings.pdf_page_size_default
+    preview_only_layout = is_preview_flow_size(page_size)
+    resolved_page_size = (
+        settings.pdf_page_size_default
+        if preview_only_layout
+        else (page_size or settings.pdf_page_size_default)
+    )
     resolved_orientation = orientation or settings.pdf_page_orientation_default
     resolved_margin = margin or settings.pdf_page_margin_default
 
     # Assemble @page rules for size and margins
     # 用紙サイズや余白を指定する@pageルールを組み立てる
-    page_css = _build_page_css(
+    page_css = "" if preview_only_layout else _build_page_css(
         resolved_page_size,
         resolved_orientation,
         resolved_margin,
@@ -724,26 +738,71 @@ def render_markdown_to_html(
         "})();</script>"
     )
 
-    html_doc = f"""
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset=\"utf-8\" />
-        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-        <style>{theme_css}{title_css}{base_css}{page_css}{page_vars_css}</style>
-      </head>
-      <body class=\"gw-screen\">
-        <div class=\"gw-page-wrapper\">
-          <article class=\"gw-page\">
-            <div class=\"gw-container\">{html_body}</div>
-          </article>
-        </div>
-        {preview_script}
-      </body>
-    </html>
-    """
-    combined_css = theme_css + title_css + base_css + page_css + page_vars_css
+    if preview_only_layout:
+        preview_script = ""
+    preview_flow_css = _build_preview_flow_css() if preview_only_layout else ""
+
+    if preview_only_layout:
+        html_doc = f"""
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset=\"utf-8\" />
+            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+            <style>{theme_css}{title_css}{base_css}{page_vars_css}{preview_flow_css}</style>
+          </head>
+          <body class=\"gw-screen gw-preview-flow\">
+            <div class=\"gw-preview-scroll\">
+              <div class=\"gw-container\">{html_body}</div>
+            </div>
+            {preview_script}
+          </body>
+        </html>
+        """
+        combined_css = theme_css + title_css + base_css + page_vars_css + preview_flow_css
+    else:
+        html_doc = f"""
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset=\"utf-8\" />
+            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+            <style>{theme_css}{title_css}{base_css}{page_css}{page_vars_css}</style>
+          </head>
+          <body class=\"gw-screen\">
+            <div class=\"gw-page-wrapper\">
+              <article class=\"gw-page\">
+                <div class=\"gw-container\">{html_body}</div>
+              </article>
+            </div>
+            {preview_script}
+          </body>
+        </html>
+        """
+        combined_css = theme_css + title_css + base_css + page_css + page_vars_css
     return html_doc, combined_css
+
+
+def _build_preview_flow_css() -> str:
+    return (
+        "@media screen{"  # Continuous scroll preview styling
+        "body.gw-preview-flow{background:var(--gw-bg);}" \
+        ".gw-preview-scroll{max-width:min(100%, calc(var(--page-width-px, 900px) + 48px));margin:0 auto;padding:24px 0 72px;}" \
+        ".gw-preview-scroll .gw-container{" \
+        "background:#fff;border-radius:16px;border:1px solid rgba(15,23,42,0.08);" \
+        "box-shadow:0 20px 45px rgba(15,23,42,0.12);max-width:100%;" \
+        "padding:var(--page-margin-top,12mm) var(--page-margin-right,12mm) var(--page-margin-bottom,12mm) var(--page-margin-left,12mm);" \
+        "}" \
+        ".gw-preview-flow .gw-container > *:first-child{margin-top:0;}" \
+        ".gw-preview-flow .gw-container > *:last-child{margin-bottom:0;}" \
+        ".gw-preview-flow .gw-page-break{display:block;border-top:1px dashed rgba(148,163,184,0.6);margin:56px auto;height:0;}" \
+        "}" \
+        "@media (prefers-color-scheme: dark){" \
+        "body.gw-preview-flow{background:#0b1220;}" \
+        ".gw-preview-scroll .gw-container{background:#111827;border-color:rgba(148,163,184,0.35);box-shadow:0 24px 60px rgba(0,0,0,0.45);}" \
+        ".gw-preview-flow .gw-page-break{border-top-color:rgba(148,163,184,0.45);}" \
+        "}\n"
+    )
 
 
 def _build_title_css(size: str, orientation: str, margin: str) -> str:

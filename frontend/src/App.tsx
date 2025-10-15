@@ -4,6 +4,7 @@ import './App.css';
 
 export const MAX_IMAGE_SIZE_MB = 10;
 export const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+const PREVIEW_PAGE_SIZE = 'preview';
 
 interface ConversionResult {
   success: boolean;
@@ -33,12 +34,19 @@ function App() {
   // 用紙サイズや向きの設定
   const [pageSize, setPageSize] = useState<string>('A4');
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const isPreviewMode = pageSize === PREVIEW_PAGE_SIZE;
   // Title page (cover) settings
   // タイトルページ（表紙）の設定
   const [includeTitlePage, setIncludeTitlePage] = useState<boolean>(false);
   const [titleText, setTitleText] = useState<string>("");
   const [titleDate, setTitleDate] = useState<string>("");
   const [titleName, setTitleName] = useState<string>("");
+
+  useEffect(() => {
+    if (isPreviewMode) {
+      setResult(null);
+    }
+  }, [isPreviewMode]);
 
   // Initialize theme from localStorage or system preference
   // localStorageやOSの設定からテーマを初期化する
@@ -64,6 +72,11 @@ function App() {
   const handleConvert = async () => {
     if (!markdownContent.trim()) {
       setError('Please enter some Markdown content');
+      return;
+    }
+
+    if (isPreviewMode) {
+      setError('PDF download is disabled in Preview Use mode');
       return;
     }
 
@@ -241,7 +254,7 @@ function App() {
   };
 
   const downloadPDF = async () => {
-    if (!result) return;
+    if (!result || isPreviewMode) return;
     try {
       const res = await fetch(result.download_url);
       if (!res.ok) throw new Error('Failed to download file');
@@ -360,12 +373,18 @@ function App() {
                     onChange={(e) => setPageSize(e.target.value)}
                     className="input w-full mt-1"
                   >
+                    <option value={PREVIEW_PAGE_SIZE}>Preview Use</option>
                     <option value="A3">A3</option>
                     <option value="A4">A4</option>
                     <option value="A5">A5</option>
                     <option value="Letter">Letter</option>
                     <option value="Legal">Legal</option>
                   </select>
+                  {isPreviewMode && (
+                    <span className="block text-xs mt-2" style={{ color: 'var(--muted)' }}>
+                      Continuous preview mode is active; PDF download is disabled.
+                    </span>
+                  )}
                 </label>
                 <label className="text-sm" style={{ color: 'var(--muted)' }}>
                   Orientation
@@ -373,6 +392,7 @@ function App() {
                     value={orientation}
                     onChange={(e) => setOrientation(e.target.value as 'portrait' | 'landscape')}
                     className="input w-full mt-1"
+                    disabled={isPreviewMode}
                   >
                     <option value="portrait">Portrait</option>
                     <option value="landscape">Landscape</option>
@@ -525,11 +545,16 @@ function App() {
             */}
             <button
               onClick={handleConvert}
-              disabled={isLoading || !markdownContent.trim()}
+              disabled={isLoading || !markdownContent.trim() || isPreviewMode}
               className="button-primary w-full py-4 text-lg font-semibold shrink-0"
             >
               {isLoading ? 'Converting...' : 'Convert to PDF'}
             </button>
+            {isPreviewMode && (
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                Disable Preview Use to generate and download PDF files.
+              </p>
+            )}
 
             {/*
               Error Display
@@ -545,7 +570,7 @@ function App() {
               Success Message
               変換成功メッセージ
             */}
-            {result && (
+            {result && !isPreviewMode && (
               <div className="card border-green-500 bg-green-50 dark:bg-green-900/20">
                 <div className="flex items-center justify-between">
                   <div>
@@ -558,7 +583,8 @@ function App() {
                   </div>
                   <button
                     onClick={downloadPDF}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={isPreviewMode}
                   >
                     <Download className="icon-button" aria-hidden="true" />
                     Download

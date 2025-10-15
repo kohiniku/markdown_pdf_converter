@@ -57,6 +57,16 @@ def test_convert_with_css():
     data = response.json()
     assert data["success"] == True
 
+
+def test_convert_preview_page_size_is_not_allowed_for_pdf_generation():
+    response = client.post("/convert", data={
+        "markdown_content": "# Preview",
+        "page_size": "preview",
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+
 def test_download_nonexistent_file():
     response = client.get("/download/nonexistent_file.pdf")
     assert response.status_code == 404

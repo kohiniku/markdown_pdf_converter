@@ -66,6 +66,23 @@ describe('App Component', () => {
     expect(convertButton).toBeEnabled();
   });
 
+  test('preview mode disables PDF conversion controls', () => {
+    render(<App />);
+    const pageSizeSelect = screen.getByLabelText(/Page size/i) as HTMLSelectElement;
+    fireEvent.change(pageSizeSelect, { target: { value: 'preview' } });
+
+    const convertButton = screen.getByText(/Convert to PDF/i);
+    const orientationSelect = screen.getByLabelText(/Orientation/i) as HTMLSelectElement;
+    const textarea = screen.getByPlaceholderText(/Enter your Markdown content here/i);
+
+    fireEvent.change(textarea, { target: { value: '# Heading' } });
+
+    expect(convertButton).toBeDisabled();
+    expect(orientationSelect).toBeDisabled();
+    expect(screen.getByText(/Continuous preview mode is active/i)).toBeInTheDocument();
+    expect(screen.getByText(/Disable Preview Use to generate/i)).toBeInTheDocument();
+  });
+
   test('shows error when conversion fails', async () => {
     // Keep preview successful but force a network error on convert
     // プレビューは成功させつつ、変換APIでネットワークエラーを起こさせる
@@ -185,7 +202,7 @@ describe('App Component', () => {
 
   test('editor tips are visible near markdown textarea', () => {
     render(<App />);
-    expect(screen.getByText(/チェックリストを作りたいときは/)).toBeInTheDocument();
+    expect(screen.getByText(/チェックリストは/)).toBeInTheDocument();
     expect(screen.getAllByText(/\[\[PAGEBREAK\]\]/i).length).toBeGreaterThan(0);
   });
 

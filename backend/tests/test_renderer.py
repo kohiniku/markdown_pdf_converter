@@ -45,6 +45,18 @@ def test_double_space_line_break_preserved_when_collapsed():
     assert "Second line" in html
 
 
+def test_preview_page_size_uses_continuous_layout():
+    html, css = renderer.render_markdown_to_html(
+        "# Preview Flow",
+        page_size="preview",
+    )
+    assert "gw-preview-flow" in html
+    assert "gw-preview-scroll" in html
+    assert 'class="gw-page-wrapper"' not in html
+    assert "function paginate" not in html
+    assert ".gw-preview-flow" in css
+
+
 def _expected_available_height_px() -> int:
     page_size = renderer.settings.pdf_page_size_default
     orientation = renderer.settings.pdf_page_orientation_default

@@ -24,7 +24,7 @@ except Exception:  # pragma: no cover - dependency missing would disable compres
 from app.config import settings, apply_proxy_settings
 from app.database import engine
 from app import models
-from app.renderer import render_markdown_to_html
+from app.renderer import render_markdown_to_html, is_preview_flow_size
 from app.pdf.adapter import get_adapter
 
 # Initialize required tables at startup
@@ -88,12 +88,14 @@ async def convert_markdown_to_pdf(
                 markdown_content = emoji_lib.emojize(markdown_content, language='alias')
             elif mode in ("off", "disable", "disabled"):
                 markdown_content = emoji_lib.replace_emoji(markdown_content, replace='')
+        effective_page_size = None if is_preview_flow_size(page_size) else page_size
+
         html_content, _ = render_markdown_to_html(
             markdown_content,
             newline_to_space=newline_to_space,
             font_size_px=font_size,
             custom_css=css_styles,
-            page_size=page_size,
+            page_size=effective_page_size,
             orientation=orientation,
             margin=margin,
             title_page=title_page,
