@@ -826,32 +826,18 @@ def _build_preview_flow_css() -> str:
         "background-color:#fff;border-radius:16px;border:1px solid rgba(15,23,42,0.08);" \
         "box-shadow:0 20px 45px rgba(15,23,42,0.12);max-width:100%;" \
         "padding:var(--page-margin-top,12mm) var(--page-margin-right,12mm) var(--page-margin-bottom,12mm) var(--page-margin-left,12mm);" \
-        "background-image:repeating-linear-gradient(" \
-        "to bottom," \
-        "transparent 0 calc(var(--page-height-px, 1123px) - 1px)," \
-        "rgba(15,23,42,0.18) calc(var(--page-height-px, 1123px) - 1px) calc(var(--page-height-px, 1123px) + 1px)" \
-        ");" \
-        "background-size:100% calc(var(--page-height-px, 1123px));" \
-        "background-repeat:repeat-y;" \
-        "background-origin:content-box;" \
-        "background-clip:content-box;" \
         "}" \
         ".gw-preview-flow .gw-container > *:first-child{margin-top:0;}" \
         ".gw-preview-flow .gw-container > *:last-child{margin-bottom:0;}" \
-        ".gw-preview-flow .gw-page-break{display:block;border-top:1px dashed rgba(148,163,184,0.6);margin:56px auto;height:0;}" \
+        ".gw-preview-flow .gw-page-break{display:none;}" \
         "}" \
         "@media (prefers-color-scheme: dark){" \
         "body.gw-preview-flow{background:#0b1220;}" \
         ".gw-preview-scroll .gw-container{" \
         "background-color:#111827;border-color:rgba(148,163,184,0.35);" \
         "box-shadow:0 24px 60px rgba(0,0,0,0.45);" \
-        "background-image:repeating-linear-gradient(" \
-        "to bottom," \
-        "transparent 0 calc(var(--page-height-px, 1123px) - 1px)," \
-        "rgba(148,163,184,0.35) calc(var(--page-height-px, 1123px) - 1px) calc(var(--page-height-px, 1123px) + 1px)" \
-        ");" \
         "}" \
-        ".gw-preview-flow .gw-page-break{border-top-color:rgba(148,163,184,0.45);}" \
+        ".gw-preview-flow .gw-page-break{display:none;}" \
         "}\n"
     )
 
@@ -889,12 +875,27 @@ def _build_static_preview_script() -> str:
         "  var markup=tmpl.innerHTML;\n"
         "  var probe=document.createElement('div');probe.className='gw-preview-probe';\n"
         "  var probeArticle=document.createElement('article');probeArticle.className='gw-page';\n"
+        "  var probeSlice=document.createElement('div');probeSlice.className='gw-page-slice';\n"
         "  var probeContainer=document.createElement('div');probeContainer.className='gw-container';\n"
-        "  probeContainer.innerHTML=markup;probeArticle.appendChild(probeContainer);probe.appendChild(probeArticle);\n"
+        "  probeContainer.innerHTML=markup;probeSlice.appendChild(probeContainer);probeArticle.appendChild(probeSlice);probe.appendChild(probeArticle);\n"
         "  document.body.appendChild(probe);\n"
         "  var root=document.documentElement;var styles=getComputedStyle(root);\n"
+        "  function toPx(raw){\n"
+        "    if(!raw) return 0;\n"
+        "    var text=String(raw).trim();\n"
+        "    if(!text) return 0;\n"
+        "    if(text.endsWith('px')) return parseFloat(text);\n"
+        "    if(text.endsWith('mm')) return parseFloat(text)*96/25.4;\n"
+        "    if(text.endsWith('cm')) return parseFloat(text)*96/2.54;\n"
+        "    if(text.endsWith('in')) return parseFloat(text)*96;\n"
+        "    return parseFloat(text) || 0;\n"
+        "  }\n"
         "  var pageHeight=parseFloat(styles.getPropertyValue('--page-height-px'))||1123;\n"
-        "  var innerHeight=pageHeight;\n"
+        "  var marginTop=toPx(styles.getPropertyValue('--page-margin-top'));\n"
+        "  var marginBottom=toPx(styles.getPropertyValue('--page-margin-bottom'));\n"
+        "  var innerHeight=pageHeight - marginTop - marginBottom;\n"
+        "  if(!(innerHeight>0)){ innerHeight=pageHeight; }\n"
+        "  var maxPad=Math.max(1, Math.min(8, innerHeight*0.02));\n"
         "  var baseTop=probeContainer.getBoundingClientRect().top;\n"
         "  var breaks=probeContainer.querySelectorAll('.gw-page-break');\n"
         "  if(breaks&&breaks.length){\n"
@@ -905,6 +906,7 @@ def _build_static_preview_script() -> str:
         "      var remainder=offset%innerHeight;\n"
         "      if(remainder<0){remainder+=innerHeight;}\n"
         "      var gap=remainder===0?0:(innerHeight-remainder);\n"
+        "      if(gap>maxPad){ gap=maxPad; }\n"
         "      node.style.display='block';\n"
         "      node.style.height=gap+'px';\n"
         "    }\n"
