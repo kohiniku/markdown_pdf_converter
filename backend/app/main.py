@@ -187,6 +187,7 @@ async def preview_markdown(
             title_date=title_date,
             title_author=title_name,
             preview_flow_override=force_flow,
+            for_preview=True,
         )
 
         return Response(content=html_content, media_type="text/html")

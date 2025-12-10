@@ -97,6 +97,7 @@ def test_preview_valid_markdown_returns_html():
     assert "@font-face" in response.text
     assert ".text-danger" in response.text
     assert "font-family: 'AppSans', 'Noto Sans CJK JP'" in response.text
+    assert '<template id="gw-preview-template">' in response.text
     assert 'class="gw-page-wrapper"' in response.text
     assert "gw-preview-flow" not in response.text
 
@@ -119,6 +120,7 @@ def test_preview_manual_pagebreak_marker_is_present_once():
     )
     assert response.status_code == 200
     assert response.text.count(">Second<") == 1
+    assert 'class="gw-page-break"' in response.text
 
 
 def test_preview_allows_inline_style_attributes():
