@@ -55,6 +55,19 @@ def test_preview_page_size_uses_continuous_layout():
     assert 'class="gw-page-wrapper"' not in html
     assert "function paginate" not in html
     assert ".gw-preview-flow" in css
+    assert "repeating-linear-gradient" in css
+
+
+def test_force_preview_layout_for_regular_page_size():
+    html, css = renderer.render_markdown_to_html(
+        "# Simplified Preview",
+        page_size="A4",
+        preview_flow_override=True,
+    )
+    assert "gw-preview-flow" in html
+    assert "gw-page-wrapper" not in html
+    assert ".gw-preview-flow" in css
+    assert "repeating-linear-gradient" in css
 
 
 def _expected_available_height_px() -> int:

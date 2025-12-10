@@ -52,6 +52,22 @@ describe('App Component', () => {
     expect(screen.getByPlaceholderText(/Enter your Markdown content here/i)).toBeInTheDocument();
   });
 
+  test('paginated preview note is shown by default', () => {
+    render(<App />);
+    expect(
+      screen.getByText(/Rendered pages match actual PDF pagination/i)
+    ).toBeInTheDocument();
+  });
+
+  test('switching preview layout updates helper text', () => {
+    render(<App />);
+    const previewSelect = screen.getByLabelText(/Preview layout/i) as HTMLSelectElement;
+    fireEvent.change(previewSelect, { target: { value: 'continuous' } });
+    expect(
+      screen.getByText(/Use continuous mode if paginated preview feels heavy/i)
+    ).toBeInTheDocument();
+  });
+
   test('convert button is disabled when no content', () => {
     render(<App />);
     const convertButton = screen.getByText(/Convert to PDF/i);
@@ -66,10 +82,10 @@ describe('App Component', () => {
     expect(convertButton).toBeEnabled();
   });
 
-  test('preview mode disables PDF conversion controls', () => {
+  test('changing page size keeps conversion controls enabled', () => {
     render(<App />);
     const pageSizeSelect = screen.getByLabelText(/Page size/i) as HTMLSelectElement;
-    fireEvent.change(pageSizeSelect, { target: { value: 'preview' } });
+    fireEvent.change(pageSizeSelect, { target: { value: 'Letter' } });
 
     const convertButton = screen.getByText(/Convert to PDF/i);
     const orientationSelect = screen.getByLabelText(/Orientation/i) as HTMLSelectElement;
@@ -77,10 +93,11 @@ describe('App Component', () => {
 
     fireEvent.change(textarea, { target: { value: '# Heading' } });
 
-    expect(convertButton).toBeDisabled();
-    expect(orientationSelect).toBeDisabled();
-    expect(screen.getByText(/Continuous preview mode is active/i)).toBeInTheDocument();
-    expect(screen.getByText(/Disable Preview Use to generate/i)).toBeInTheDocument();
+    expect(convertButton).toBeEnabled();
+    expect(orientationSelect).not.toBeDisabled();
+    expect(
+      screen.queryByText(/Continuous preview mode is active/i)
+    ).not.toBeInTheDocument();
   });
 
   test('shows error when conversion fails', async () => {

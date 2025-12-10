@@ -143,6 +143,7 @@ async def preview_markdown(
     page_size: Optional[str] = Form(None),
     orientation: Optional[str] = Form(None),
     margin: Optional[str] = Form(None),
+    preview_mode: Optional[str] = Form("paginated"),
     # Title page options
     # タイトルページのオプション
     title_page: Optional[bool] = Form(None),
@@ -165,6 +166,14 @@ async def preview_markdown(
                 markdown_content = emoji_lib.emojize(markdown_content, language='alias')
             elif mode in ("off", "disable", "disabled"):
                 markdown_content = emoji_lib.replace_emoji(markdown_content, replace='')
+        force_flow = None
+        if preview_mode:
+            lowered = preview_mode.strip().lower()
+            if lowered in ("continuous", "flow", "scroll"):
+                force_flow = True
+            elif lowered in ("paginated", "pages", "page"):
+                force_flow = False
+
         html_content, _ = render_markdown_to_html(
             markdown_content,
             newline_to_space=newline_to_space,
@@ -177,6 +186,7 @@ async def preview_markdown(
             title_text=title_text,
             title_date=title_date,
             title_author=title_name,
+            preview_flow_override=force_flow,
         )
 
         return Response(content=html_content, media_type="text/html")

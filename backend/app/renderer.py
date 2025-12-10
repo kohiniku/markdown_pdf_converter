@@ -391,6 +391,7 @@ def render_markdown_to_html(
     title_text: Optional[str] = None,
     title_date: Optional[str] = None,
     title_author: Optional[str] = None,
+    preview_flow_override: Optional[bool] = None,
 ) -> Tuple[str, str]:
     """Render Markdown to full HTML plus CSS.
 
@@ -459,10 +460,14 @@ def render_markdown_to_html(
     base_size = font_size_px if font_size_px is not None else settings.pdf_base_font_size
     base_css = f"body{{font-size:{base_size}px}}\n" if base_size else ""
 
-    preview_only_layout = is_preview_flow_size(page_size)
+    preview_alias_requested = is_preview_flow_size(page_size)
+    if preview_flow_override is None:
+        preview_only_layout = preview_alias_requested
+    else:
+        preview_only_layout = preview_flow_override
     resolved_page_size = (
         settings.pdf_page_size_default
-        if preview_only_layout
+        if preview_alias_requested
         else (page_size or settings.pdf_page_size_default)
     )
     resolved_orientation = orientation or settings.pdf_page_orientation_default
@@ -789,9 +794,18 @@ def _build_preview_flow_css() -> str:
         "body.gw-preview-flow{background:var(--gw-bg);}" \
         ".gw-preview-scroll{max-width:min(100%, calc(var(--page-width-px, 900px) + 48px));margin:0 auto;padding:24px 0 72px;}" \
         ".gw-preview-scroll .gw-container{" \
-        "background:#fff;border-radius:16px;border:1px solid rgba(15,23,42,0.08);" \
+        "background-color:#fff;border-radius:16px;border:1px solid rgba(15,23,42,0.08);" \
         "box-shadow:0 20px 45px rgba(15,23,42,0.12);max-width:100%;" \
         "padding:var(--page-margin-top,12mm) var(--page-margin-right,12mm) var(--page-margin-bottom,12mm) var(--page-margin-left,12mm);" \
+        "background-image:repeating-linear-gradient(" \
+        "to bottom," \
+        "transparent 0 calc(var(--page-height-px, 1123px) - 1px)," \
+        "rgba(15,23,42,0.18) calc(var(--page-height-px, 1123px) - 1px) calc(var(--page-height-px, 1123px) + 1px)" \
+        ");" \
+        "background-size:100% calc(var(--page-height-px, 1123px));" \
+        "background-repeat:repeat-y;" \
+        "background-origin:content-box;" \
+        "background-clip:content-box;" \
         "}" \
         ".gw-preview-flow .gw-container > *:first-child{margin-top:0;}" \
         ".gw-preview-flow .gw-container > *:last-child{margin-bottom:0;}" \
@@ -799,7 +813,15 @@ def _build_preview_flow_css() -> str:
         "}" \
         "@media (prefers-color-scheme: dark){" \
         "body.gw-preview-flow{background:#0b1220;}" \
-        ".gw-preview-scroll .gw-container{background:#111827;border-color:rgba(148,163,184,0.35);box-shadow:0 24px 60px rgba(0,0,0,0.45);}" \
+        ".gw-preview-scroll .gw-container{" \
+        "background-color:#111827;border-color:rgba(148,163,184,0.35);" \
+        "box-shadow:0 24px 60px rgba(0,0,0,0.45);" \
+        "background-image:repeating-linear-gradient(" \
+        "to bottom," \
+        "transparent 0 calc(var(--page-height-px, 1123px) - 1px)," \
+        "rgba(148,163,184,0.35) calc(var(--page-height-px, 1123px) - 1px) calc(var(--page-height-px, 1123px) + 1px)" \
+        ");" \
+        "}" \
         ".gw-preview-flow .gw-page-break{border-top-color:rgba(148,163,184,0.45);}" \
         "}\n"
     )

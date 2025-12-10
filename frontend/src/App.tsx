@@ -4,7 +4,8 @@ import './App.css';
 
 export const MAX_IMAGE_SIZE_MB = 10;
 export const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
-const PREVIEW_PAGE_SIZE = 'preview';
+
+type PreviewMode = 'paginated' | 'continuous';
 
 interface ConversionResult {
   success: boolean;
@@ -34,19 +35,13 @@ function App() {
   // 用紙サイズや向きの設定
   const [pageSize, setPageSize] = useState<string>('A4');
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
-  const isPreviewMode = pageSize === PREVIEW_PAGE_SIZE;
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('paginated');
   // Title page (cover) settings
   // タイトルページ（表紙）の設定
   const [includeTitlePage, setIncludeTitlePage] = useState<boolean>(false);
   const [titleText, setTitleText] = useState<string>("");
   const [titleDate, setTitleDate] = useState<string>("");
   const [titleName, setTitleName] = useState<string>("");
-
-  useEffect(() => {
-    if (isPreviewMode) {
-      setResult(null);
-    }
-  }, [isPreviewMode]);
 
   // Initialize theme from localStorage or system preference
   // localStorageやOSの設定からテーマを初期化する
@@ -72,11 +67,6 @@ function App() {
   const handleConvert = async () => {
     if (!markdownContent.trim()) {
       setError('Please enter some Markdown content');
-      return;
-    }
-
-    if (isPreviewMode) {
-      setError('PDF download is disabled in Preview Use mode');
       return;
     }
 
@@ -254,7 +244,7 @@ function App() {
   };
 
   const downloadPDF = async () => {
-    if (!result || isPreviewMode) return;
+    if (!result) return;
     try {
       const res = await fetch(result.download_url);
       if (!res.ok) throw new Error('Failed to download file');
@@ -290,6 +280,7 @@ function App() {
         if (fontSize) formData.append('font_size', String(fontSize));
         if (pageSize) formData.append('page_size', pageSize);
         if (orientation) formData.append('orientation', orientation);
+        formData.append('preview_mode', previewMode);
         if (includeTitlePage) {
           formData.append('title_page', 'true');
           if (titleText) formData.append('title_text', titleText);
@@ -310,7 +301,7 @@ function App() {
     return () => {
       if (previewTimer.current) window.clearTimeout(previewTimer.current);
     };
-  }, [markdownContent, fontSize, pageSize, orientation]);
+  }, [markdownContent, fontSize, pageSize, orientation, previewMode]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
@@ -373,18 +364,12 @@ function App() {
                     onChange={(e) => setPageSize(e.target.value)}
                     className="input w-full mt-1"
                   >
-                    <option value={PREVIEW_PAGE_SIZE}>Preview Use</option>
                     <option value="A3">A3</option>
                     <option value="A4">A4</option>
                     <option value="A5">A5</option>
                     <option value="Letter">Letter</option>
                     <option value="Legal">Legal</option>
                   </select>
-                  {isPreviewMode && (
-                    <span className="block text-xs mt-2" style={{ color: 'var(--muted)' }}>
-                      Continuous preview mode is active; PDF download is disabled.
-                    </span>
-                  )}
                 </label>
                 <label className="text-sm" style={{ color: 'var(--muted)' }}>
                   Orientation
@@ -392,7 +377,6 @@ function App() {
                     value={orientation}
                     onChange={(e) => setOrientation(e.target.value as 'portrait' | 'landscape')}
                     className="input w-full mt-1"
-                    disabled={isPreviewMode}
                   >
                     <option value="portrait">Portrait</option>
                     <option value="landscape">Landscape</option>
@@ -545,16 +529,11 @@ function App() {
             */}
             <button
               onClick={handleConvert}
-              disabled={isLoading || !markdownContent.trim() || isPreviewMode}
+              disabled={isLoading || !markdownContent.trim()}
               className="button-primary w-full py-4 text-lg font-semibold shrink-0"
             >
               {isLoading ? 'Converting...' : 'Convert to PDF'}
             </button>
-            {isPreviewMode && (
-              <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                Disable Preview Use to generate and download PDF files.
-              </p>
-            )}
 
             {/*
               Error Display
@@ -570,7 +549,7 @@ function App() {
               Success Message
               変換成功メッセージ
             */}
-            {result && !isPreviewMode && (
+            {result && (
               <div className="card border-green-500 bg-green-50 dark:bg-green-900/20">
                 <div className="flex items-center justify-between">
                   <div>
@@ -584,7 +563,6 @@ function App() {
                   <button
                     onClick={downloadPDF}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                    disabled={isPreviewMode}
                   >
                     <Download className="icon-button" aria-hidden="true" />
                     Download
@@ -599,6 +577,24 @@ function App() {
             */}
             <div className="card flex min-h-[720px] flex-1 flex-col">
               <h2 className="text-lg font-semibold mb-4">Preview</h2>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+                <label className="text-sm flex flex-col md:flex-row md:items-center gap-2" style={{ color: 'var(--muted)' }}>
+                  Preview layout
+                  <select
+                    value={previewMode}
+                    onChange={(e) => setPreviewMode(e.target.value as PreviewMode)}
+                    className="input w-full md:w-auto"
+                  >
+                    <option value="paginated">Paginated (auto page breaks)</option>
+                    <option value="continuous">Continuous scroll</option>
+                  </select>
+                </label>
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                  {previewMode === 'paginated'
+                    ? 'Rendered pages match actual PDF pagination.'
+                    : 'Use continuous mode if paginated preview feels heavy.'}
+                </p>
+              </div>
               {isPreviewLoading && (
                 <p className="text-sm" style={{ color: 'var(--muted)' }}>Rendering preview…</p>
               )}

@@ -97,6 +97,19 @@ def test_preview_valid_markdown_returns_html():
     assert "@font-face" in response.text
     assert ".text-danger" in response.text
     assert "font-family: 'AppSans', 'Noto Sans CJK JP'" in response.text
+    assert "gw-page-wrapper" in response.text
+    assert "gw-preview-flow" not in response.text
+
+
+def test_preview_continuous_mode_returns_flow_layout():
+    response = client.post(
+        "/preview",
+        data={"markdown_content": "# Flow\n\nContent", "preview_mode": "continuous"},
+    )
+    assert response.status_code == 200
+    assert "gw-preview-flow" in response.text
+    assert "gw-preview-scroll" in response.text
+    assert "gw-page-wrapper" not in response.text
 
 
 def test_preview_allows_inline_style_attributes():
