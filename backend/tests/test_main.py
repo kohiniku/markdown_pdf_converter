@@ -97,7 +97,7 @@ def test_preview_valid_markdown_returns_html():
     assert "@font-face" in response.text
     assert ".text-danger" in response.text
     assert "font-family: 'AppSans', 'Noto Sans CJK JP'" in response.text
-    assert "gw-page-wrapper" in response.text
+    assert 'class="gw-page-wrapper"' in response.text
     assert "gw-preview-flow" not in response.text
 
 
@@ -110,6 +110,15 @@ def test_preview_continuous_mode_returns_flow_layout():
     assert "gw-preview-flow" in response.text
     assert "gw-preview-scroll" in response.text
     assert "gw-page-wrapper" not in response.text
+
+
+def test_preview_manual_pagebreak_marker_is_present_once():
+    response = client.post(
+        "/preview",
+        data={"markdown_content": "# First\n\n[[PAGEBREAK]]\n\n# Second"},
+    )
+    assert response.status_code == 200
+    assert response.text.count(">Second<") == 1
 
 
 def test_preview_allows_inline_style_attributes():

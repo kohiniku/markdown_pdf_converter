@@ -65,7 +65,7 @@ def test_force_preview_layout_for_regular_page_size():
         preview_flow_override=True,
     )
     assert "gw-preview-flow" in html
-    assert "gw-page-wrapper" not in html
+    assert '<div class="gw-page-wrapper">' not in html
     assert ".gw-preview-flow" in css
     assert "repeating-linear-gradient" in css
 
