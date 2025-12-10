@@ -829,7 +829,8 @@ def _build_preview_flow_css() -> str:
         "}" \
         ".gw-preview-flow .gw-container > *:first-child{margin-top:0;}" \
         ".gw-preview-flow .gw-container > *:last-child{margin-bottom:0;}" \
-        ".gw-preview-flow .gw-page-break{display:none;}" \
+        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}" \
+        ".gw-preview-flow .gw-page-break-soft{display:none!important;}" \
         "}" \
         "@media (prefers-color-scheme: dark){" \
         "body.gw-preview-flow{background:#0b1220;}" \
@@ -837,7 +838,8 @@ def _build_preview_flow_css() -> str:
         "background-color:#111827;border-color:rgba(148,163,184,0.35);" \
         "box-shadow:0 24px 60px rgba(0,0,0,0.45);" \
         "}" \
-        ".gw-preview-flow .gw-page-break{display:none;}" \
+        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}" \
+        ".gw-preview-flow .gw-page-break-soft{display:none!important;}" \
         "}\n"
     )
 
@@ -847,6 +849,7 @@ def _build_static_preview_css() -> str:
         ".gw-static-preview template{display:none;}"
         ".gw-preview-probe{position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;"
         "width:var(--page-width-px,794px);z-index:-1;}"
+        ".gw-static-preview .gw-page-break-soft{display:block;width:100%;height:0;margin:0 0 8px;border:0;padding:0;}"
         ".gw-page-wrapper[data-preview-mode=\"static\"]{display:flex;justify-content:center;padding:16px;overflow:auto;}"
         ".gw-page-wrapper[data-preview-mode=\"static\"] #gw-pages{display:flex;flex-direction:column;align-items:center;"
         "gap:18px;width:100%;}"
@@ -895,7 +898,6 @@ def _build_static_preview_script() -> str:
         "  var marginBottom=toPx(styles.getPropertyValue('--page-margin-bottom'));\n"
         "  var innerHeight=pageHeight - marginTop - marginBottom;\n"
         "  if(!(innerHeight>0)){ innerHeight=pageHeight; }\n"
-        "  var maxPad=Math.max(1, Math.min(8, innerHeight*0.02));\n"
         "  var baseTop=probeContainer.getBoundingClientRect().top;\n"
         "  var breaks=probeContainer.querySelectorAll('.gw-page-break');\n"
         "  if(breaks&&breaks.length){\n"
@@ -906,9 +908,11 @@ def _build_static_preview_script() -> str:
         "      var remainder=offset%innerHeight;\n"
         "      if(remainder<0){remainder+=innerHeight;}\n"
         "      var gap=remainder===0?0:(innerHeight-remainder);\n"
-        "      if(gap>maxPad){ gap=maxPad; }\n"
         "      node.style.display='block';\n"
         "      node.style.height=gap+'px';\n"
+        "      node.style.margin='0';\n"
+        "      node.style.padding='0';\n"
+        "      node.style.border='0';\n"
         "    }\n"
         "  }\n"
         "  var normalized=probeContainer.outerHTML;\n"
@@ -1169,6 +1173,7 @@ def _replace_reserved_page_breaks(md: str) -> str:
         if raw.strip().lower() in reserved_markers:
             if out and out[-1] != "":
                 out.append("")
+            out.append('<div class="gw-page-break-soft"></div>')
             out.append('<div class="gw-page-break"></div>')
             i += 1
             # Insert a blank line after the page-break marker when needed
