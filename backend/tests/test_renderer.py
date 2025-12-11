@@ -13,7 +13,9 @@ def test_title_page_print_min_height_matches_available_area():
     match = re.search(
         r"@media print\{\.gw-title-page\{min-height:([0-9]+)px;height:\1px;", html
     )
-    assert match, "Expected numeric min-height and height declarations for print title page"
+    assert match, (
+        "Expected numeric min-height and height declarations for print title page"
+    )
 
     expected_height = _expected_available_height_px()
     assert int(match.group(1)) == expected_height
@@ -24,7 +26,7 @@ def test_image_width_attribute_is_reflected_in_style():
         "![img](/assets/picture.png){width=200}\n",
         title_page=False,
     )
-    assert "width=\"200\"" in html
+    assert 'width="200"' in html
     assert re.search(r"style=\"[^\"]*width:200px;", html)
 
 
@@ -81,6 +83,16 @@ def test_paginated_preview_builds_static_template():
     assert '<template id="gw-preview-template">' in html
     assert 'data-preview-mode="static"' in html
     assert ".gw-page-slice" in html
+
+
+def test_paginated_preview_applies_per_page_margins():
+    _, css = renderer.render_markdown_to_html(
+        "# Body",
+        page_size="A4",
+        for_preview=True,
+    )
+    assert '.gw-page-wrapper[data-preview-mode="static"] .gw-page-outer>.gw-page' in css
+    assert "box-sizing:border-box;padding:var(--page-margin-top" in css
 
 
 def _expected_available_height_px() -> int:

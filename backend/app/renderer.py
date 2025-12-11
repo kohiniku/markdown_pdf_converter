@@ -125,7 +125,7 @@ def get_theme_css() -> str:
 
 @lru_cache(maxsize=8)
 def _load_theme_css_cached(
-    cache_key: tuple[str, float, str, float, str, float, str, float, str, float]
+    cache_key: tuple[str, float, str, float, str, float, str, float, str, float],
 ) -> str:
     (
         theme_path_str,
@@ -167,9 +167,7 @@ def _load_theme_css_cached(
             notice = (
                 "/* WARNING: custom_style.css overrides {}. "
                 "GUI controls for these settings may not have effect. */\n"
-            ).format(
-                ", ".join(conflicts)
-            )
+            ).format(", ".join(conflicts))
             css_parts.append(notice + custom_css)
         else:
             css_parts.append(custom_css)
@@ -442,7 +440,9 @@ def render_markdown_to_html(
         "toc": {"permalink": True, "permalink_class": "gw-heading-anchor"},
     }
 
-    html_body = md.markdown(markdown_text, extensions=extensions, extension_configs=extension_configs)
+    html_body = md.markdown(
+        markdown_text, extensions=extensions, extension_configs=extension_configs
+    )
     html_body = _convert_deprecated_font_tags(html_body)
 
     # Prepend a title-page block when requested
@@ -458,7 +458,9 @@ def render_markdown_to_html(
 
     html_body = _normalize_image_widths(html_body)
 
-    base_size = font_size_px if font_size_px is not None else settings.pdf_base_font_size
+    base_size = (
+        font_size_px if font_size_px is not None else settings.pdf_base_font_size
+    )
     base_css = f"body{{font-size:{base_size}px}}\n" if base_size else ""
 
     preview_alias_requested = is_preview_flow_size(page_size)
@@ -477,10 +479,14 @@ def render_markdown_to_html(
 
     # Assemble @page rules for size and margins
     # 用紙サイズや余白を指定する@pageルールを組み立てる
-    page_css = "" if preview_only_layout else _build_page_css(
-        resolved_page_size,
-        resolved_orientation,
-        resolved_margin,
+    page_css = (
+        ""
+        if preview_only_layout
+        else _build_page_css(
+            resolved_page_size,
+            resolved_orientation,
+            resolved_margin,
+        )
     )
     page_vars_css = _build_page_vars_css(
         resolved_page_size,
@@ -496,19 +502,13 @@ def render_markdown_to_html(
     preview_script = (
         "<script>(function(){\n"
         "var SRC_HTML=null;\n"
-        "var PAGINATING=false;\n"
-        "var NEEDS_RERUN=false;\n"
-        "function now(){return (window.performance&&performance.now)?performance.now():Date.now();}\n"
-        "function paginate(done){\n"
-        "  if(PAGINATING){NEEDS_RERUN=true;return;}\n"
+        "function paginate(){\n"
         "  var wrapper=document.querySelector('.gw-page-wrapper');\n"
-        "  if(!wrapper){if(done) done();return;}\n"
-        "  PAGINATING=true;\n"
-        "  NEEDS_RERUN=false;\n"
+        "  if(!wrapper) return;\n"
         "  var source=null;\n"
         "  if(!SRC_HTML){\n"
-        "    var first=wrapper.querySelector('.gw-page'); if(!first){PAGINATING=false; if(done) done(); return;}\n"
-        "    var content=first.querySelector('.gw-container'); if(!content){PAGINATING=false; if(done) done(); return;}\n"
+        "    var first=wrapper.querySelector('.gw-page'); if(!first) return;\n"
+        "    var content=first.querySelector('.gw-container'); if(!content) return;\n"
         "    SRC_HTML=content.innerHTML;\n"
         "  }\n"
         "  source=document.createElement('div'); source.innerHTML=SRC_HTML;\n"
@@ -704,23 +704,24 @@ def render_markdown_to_html(
         "      }else{\n"
         "        index++;\n"
         "      }\n"
-      "    }\n"
+        "    }\n"
         "  }\n"
-        "  function processNode(node){\n"
+        "  for(var i=0;i<nodes.length;i++){\n"
+        "    var node=nodes[i];\n"
         "    if(node.nodeType===1 && node.classList && node.classList.contains('gw-page-break')){\n"
-        "      if(cur.cont.childNodes.length===0) return;\n"
+        "      if(cur.cont.childNodes.length===0) continue;\n"
         "      cur=makePage();\n"
-        "      return;\n"
+        "      continue;\n"
         "    }\n"
         "    if(node.nodeType===1 && node.tagName && node.tagName.toLowerCase()==='table'){\n"
         "      paginateTable(node);\n"
-        "      return;\n"
+        "      continue;\n"
         "    }\n"
         "    if(node.nodeType===1 && node.tagName){\n"
         "      var tag=node.tagName.toLowerCase();\n"
         "      if(tag==='ul' || tag==='ol'){\n"
         "        paginateList(node);\n"
-        "        return;\n"
+        "        continue;\n"
         "      }\n"
         "    }\n"
         "    var toAdd=node.cloneNode(true);\n"
@@ -731,25 +732,6 @@ def render_markdown_to_html(
         "      cur.cont.appendChild(toAdd);\n"
         "    }\n"
         "  }\n"
-        "  var index=0;\n"
-        "  function runBatch(){\n"
-        "    var deadline=now()+12;\n"
-        "    while(index < nodes.length && now() < deadline){\n"
-        "      processNode(nodes[index++]);\n"
-        "    }\n"
-        "    if(index < nodes.length){\n"
-        "      requestAnimationFrame(runBatch);\n"
-        "    }else{\n"
-        "      PAGINATING=false;\n"
-        "      if(NEEDS_RERUN){\n"
-        "        NEEDS_RERUN=false;\n"
-        "        paginate(done);\n"
-        "        return;\n"
-        "      }\n"
-        "      if(done) done();\n"
-        "    }\n"
-        "  }\n"
-        "  runBatch();\n"
         "}\n"
         "function scalePages(){\n"
         "  var wrapper=document.querySelector('.gw-page-wrapper');\n"
@@ -762,8 +744,8 @@ def render_markdown_to_html(
         "  var list=wrapper.querySelectorAll('.gw-page-outer');\n"
         "  for(var i=0;i<list.length;i++){ list[i].style.setProperty('--scale', String(scale)); }\n"
         "}\n"
-        "function init(){paginate(scalePages); window.addEventListener('resize', scalePages);\n"
-        "  var imgs=document.images||[]; for(var k=0;k<imgs.length;k++){ imgs[k].addEventListener('load', function(){ paginate(scalePages); }); }\n"
+        "function init(){paginate(); scalePages(); window.addEventListener('resize', scalePages);\n"
+        "  var imgs=document.images||[]; for(var k=0;k<imgs.length;k++){ imgs[k].addEventListener('load', function(){ paginate(); scalePages(); }); }\n"
         "}\n"
         "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', init);}else{init();}\n"
         "})();</script>"
@@ -771,10 +753,7 @@ def render_markdown_to_html(
 
     if preview_only_layout:
         preview_script = ""
-    elif paginated_preview:
-        preview_script = ""
     preview_flow_css = _build_preview_flow_css() if preview_only_layout else ""
-    static_preview_css = _build_static_preview_css() if paginated_preview else ""
 
     if preview_only_layout:
         html_doc = f"""
@@ -793,31 +772,29 @@ def render_markdown_to_html(
           </body>
         </html>
         """
-        combined_css = theme_css + title_css + base_css + page_vars_css + preview_flow_css
-    elif paginated_preview:
-        template_markup = (
-            f"<template id=\"gw-preview-template\">"
-            f"<div class=\"gw-container\">{html_body}</div>"
-            "</template>"
+        combined_css = (
+            theme_css + title_css + base_css + page_vars_css + preview_flow_css
         )
+    elif paginated_preview:
         html_doc = f"""
         <!DOCTYPE html>
         <html>
           <head>
             <meta charset=\"utf-8\" />
             <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-            <style>{theme_css}{title_css}{base_css}{page_css}{page_vars_css}{static_preview_css}</style>
+            <style>{theme_css}{title_css}{base_css}{page_css}{page_vars_css}</style>
           </head>
-          <body class=\"gw-screen gw-static-preview\">
-            {template_markup}
-            <div class=\"gw-page-wrapper\" data-preview-mode=\"static\">
-              <div id=\"gw-pages\"></div>
+          <body class=\"gw-screen gw-preview-pages\">
+            <div class=\"gw-page-wrapper\" data-preview-mode=\"dynamic\">
+              <article class=\"gw-page\">
+                <div class=\"gw-container\">{html_body}</div>
+              </article>
             </div>
-            {_build_static_preview_script()}
+            {preview_script}
           </body>
         </html>
         """
-        combined_css = theme_css + title_css + base_css + page_css + page_vars_css + static_preview_css
+        combined_css = theme_css + title_css + base_css + page_css + page_vars_css
     else:
         html_doc = f"""
         <!DOCTYPE html>
@@ -844,140 +821,29 @@ def render_markdown_to_html(
 def _build_preview_flow_css() -> str:
     return (
         "@media screen{"  # Continuous scroll preview styling
-        "body.gw-preview-flow{background:var(--gw-bg);}" \
-        ".gw-preview-scroll{max-width:min(100%, calc(var(--page-width-px, 900px) + 48px));margin:0 auto;padding:24px 0 72px;}" \
-        ".gw-preview-scroll .gw-container{" \
-        "background-color:#fff;border-radius:16px;border:1px solid rgba(15,23,42,0.08);" \
-        "box-shadow:0 20px 45px rgba(15,23,42,0.12);max-width:100%;" \
-        "padding:var(--page-margin-top,12mm) var(--page-margin-right,12mm) var(--page-margin-bottom,12mm) var(--page-margin-left,12mm);" \
-        "}" \
-        ".gw-preview-flow .gw-container > *:first-child{margin-top:0;}" \
-        ".gw-preview-flow .gw-container > *:last-child{margin-bottom:0;}" \
-        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}" \
-        ".gw-preview-flow .gw-page-break-soft{display:none!important;}" \
-        "}" \
-        "@media (prefers-color-scheme: dark){" \
-        "body.gw-preview-flow{background:#0b1220;}" \
-        ".gw-preview-scroll .gw-container{" \
-        "background-color:#111827;border-color:rgba(148,163,184,0.35);" \
-        "box-shadow:0 24px 60px rgba(0,0,0,0.45);" \
-        "}" \
-        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}" \
-        ".gw-preview-flow .gw-page-break-soft{display:none!important;}" \
+        "body.gw-preview-flow{background:var(--gw-bg);}"
+        ".gw-preview-scroll{max-width:min(100%, calc(var(--page-width-px, 900px) + 48px));margin:0 auto;padding:24px 0 72px;}"
+        ".gw-preview-scroll .gw-container{"
+        "background-color:#fff;border-radius:16px;border:1px solid rgba(15,23,42,0.08);"
+        "box-shadow:0 20px 45px rgba(15,23,42,0.12);max-width:100%;"
+        "padding:var(--page-margin-top,12mm) var(--page-margin-right,12mm) var(--page-margin-bottom,12mm) var(--page-margin-left,12mm);"
+        "}"
+        ".gw-preview-flow .gw-container > *:first-child{margin-top:0;}"
+        ".gw-preview-flow .gw-container > *:last-child{margin-bottom:0;}"
+        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}"
+        ".gw-preview-flow .gw-page-break-soft{display:none!important;}"
+        "}"
+        "@media (prefers-color-scheme: dark){"
+        "body.gw-preview-flow{background:#0b1220;}"
+        ".gw-preview-scroll .gw-container{"
+        "background-color:#111827;border-color:rgba(148,163,184,0.35);"
+        "box-shadow:0 24px 60px rgba(0,0,0,0.45);"
+        "}"
+        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}"
+        ".gw-preview-flow .gw-page-break-soft{display:none!important;}"
         "}\n"
     )
 
-
-def _build_static_preview_css() -> str:
-    return (
-        ".gw-static-preview template{display:none;}"
-        ".gw-preview-probe{position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;"
-        "width:var(--page-width-px,794px);z-index:-1;}"
-        ".gw-static-preview .gw-page-break-soft{display:block;width:100%;height:0;margin:0 0 8px;border:0;padding:0;}"
-        ".gw-page-wrapper[data-preview-mode=\"static\"]{display:flex;justify-content:center;padding:16px;overflow:auto;}"
-        ".gw-page-wrapper[data-preview-mode=\"static\"] #gw-pages{display:flex;flex-direction:column;align-items:center;"
-        "gap:18px;width:100%;}"
-        ".gw-page-wrapper[data-preview-mode=\"static\"] .gw-page-outer{position:relative;"
-        "width:calc(var(--page-width-px,794px)*var(--scale,1));"
-        "height:calc(var(--page-height-px,1123px)*var(--scale,1));}"
-        ".gw-page-wrapper[data-preview-mode=\"static\"] .gw-page-outer>.gw-page{position:absolute;top:0;left:0;"
-        "width:100%;height:100%;transform-origin:top left;transform:scale(var(--scale,1));overflow:hidden;"
-        "background:#fff;}"
-        ".gw-page-slice{position:absolute;top:0;left:0;width:100%;}"
-        ".gw-page-slice .gw-container{max-width:none;padding:var(--page-margin-top,12mm) "
-        "var(--page-margin-right,12mm) var(--page-margin-bottom,12mm) var(--page-margin-left,12mm);}"
-        ".gw-static-preview .gw-page-break{display:block;margin:0;height:0;}"
-    )
-
-
-def _build_static_preview_script() -> str:
-    return (
-        "<script>(function(){\n"
-        "var rebuildTimer=null;\n"
-        "function clear(el){while(el.firstChild){el.removeChild(el.firstChild);}}\n"
-        "function buildPages(){\n"
-        "  var tmpl=document.getElementById('gw-preview-template');\n"
-        "  var host=document.getElementById('gw-pages');\n"
-        "  if(!tmpl||!host) return;\n"
-        "  var markup=tmpl.innerHTML;\n"
-        "  var probe=document.createElement('div');probe.className='gw-preview-probe';\n"
-        "  var probeArticle=document.createElement('article');probeArticle.className='gw-page';\n"
-        "  var probeSlice=document.createElement('div');probeSlice.className='gw-page-slice';\n"
-        "  var probeContainer=document.createElement('div');probeContainer.className='gw-container';\n"
-        "  probeContainer.innerHTML=markup;probeSlice.appendChild(probeContainer);probeArticle.appendChild(probeSlice);probe.appendChild(probeArticle);\n"
-        "  document.body.appendChild(probe);\n"
-        "  var root=document.documentElement;var styles=getComputedStyle(root);\n"
-        "  function toPx(raw){\n"
-        "    if(!raw) return 0;\n"
-        "    var text=String(raw).trim();\n"
-        "    if(!text) return 0;\n"
-        "    if(text.endsWith('px')) return parseFloat(text);\n"
-        "    if(text.endsWith('mm')) return parseFloat(text)*96/25.4;\n"
-        "    if(text.endsWith('cm')) return parseFloat(text)*96/2.54;\n"
-        "    if(text.endsWith('in')) return parseFloat(text)*96;\n"
-        "    return parseFloat(text) || 0;\n"
-        "  }\n"
-        "  var pageHeight=parseFloat(styles.getPropertyValue('--page-height-px'))||1123;\n"
-        "  var marginTop=toPx(styles.getPropertyValue('--page-margin-top'));\n"
-        "  var marginBottom=toPx(styles.getPropertyValue('--page-margin-bottom'));\n"
-        "  var innerHeight=pageHeight - marginTop - marginBottom;\n"
-        "  if(!(innerHeight>0)){ innerHeight=pageHeight; }\n"
-        "  var baseTop=probeContainer.getBoundingClientRect().top;\n"
-        "  var breaks=probeContainer.querySelectorAll('.gw-page-break');\n"
-        "  if(breaks&&breaks.length){\n"
-        "    for(var b=0;b<breaks.length;b++){\n"
-        "      var node=breaks[b];\n"
-        "      var rect=node.getBoundingClientRect();\n"
-        "      var offset=rect.top-baseTop;\n"
-        "      var remainder=offset%innerHeight;\n"
-        "      if(remainder<0){remainder+=innerHeight;}\n"
-        "      var gap=remainder===0?0:(innerHeight-remainder);\n"
-        "      node.style.display='block';\n"
-        "      node.style.height=gap+'px';\n"
-        "      node.style.margin='0';\n"
-        "      node.style.padding='0';\n"
-        "      node.style.border='0';\n"
-        "    }\n"
-        "  }\n"
-        "  var normalized=probeContainer.outerHTML;\n"
-        "  var totalHeight=probeContainer.scrollHeight;\n"
-        "  document.body.removeChild(probe);\n"
-        "  clear(host);\n"
-        "  var pages=Math.max(1, Math.ceil(totalHeight/innerHeight));\n"
-        "  for(var i=0;i<pages;i++){\n"
-        "    var outer=document.createElement('div');outer.className='gw-page-outer';\n"
-        "    var page=document.createElement('article');page.className='gw-page';\n"
-        "    var slice=document.createElement('div');slice.className='gw-page-slice';\n"
-        "    slice.innerHTML=normalized;\n"
-        "    slice.style.transform='translateY(-'+(i*innerHeight)+'px)';\n"
-        "    page.appendChild(slice);outer.appendChild(page);host.appendChild(outer);\n"
-        "  }\n"
-        "  scalePages();\n"
-        "}\n"
-        "function scalePages(){\n"
-        "  var wrapper=document.querySelector('.gw-page-wrapper[data-preview-mode=\"static\"]');\n"
-        "  if(!wrapper) return;\n"
-        "  var root=document.documentElement;var cs=getComputedStyle(root);\n"
-        "  var pageWidth=parseFloat(cs.getPropertyValue('--page-width-px'))||794;\n"
-        "  var avail=wrapper.clientWidth-32;var scale=1;\n"
-        "  if(pageWidth>0){scale=Math.min(1, Math.max(0.35, avail/pageWidth));}\n"
-        "  var pages=wrapper.querySelectorAll('.gw-page-outer');\n"
-        "  for(var i=0;i<pages.length;i++){\n"
-        "    pages[i].style.setProperty('--scale', String(scale));\n"
-        "  }\n"
-        "}\n"
-        "function schedule(){\n"
-        "  clearTimeout(rebuildTimer);\n"
-        "  rebuildTimer=setTimeout(buildPages,150);\n"
-        "}\n"
-        "if(document.readyState==='loading'){\n"
-        "  document.addEventListener('DOMContentLoaded', buildPages);\n"
-        "}else{\n"
-        "  buildPages();\n"
-        "}\n"
-        "window.addEventListener('resize', schedule);\n"
-        "})();</script>"
-    )
 
 def _build_title_css(size: str, orientation: str, margin: str) -> str:
     """Build CSS for the generated title page block.
@@ -999,7 +865,9 @@ def _build_title_css(size: str, orientation: str, margin: str) -> str:
 
     page_height_px = _mm_to_px(page_height_mm)
 
-    default_top, _, default_bottom, _ = _expand_margin_shorthand(settings.pdf_page_margin_default)
+    default_top, _, default_bottom, _ = _expand_margin_shorthand(
+        settings.pdf_page_margin_default
+    )
     margin_top_px = _css_length_to_px(margin_top)
     margin_bottom_px = _css_length_to_px(margin_bottom)
     if margin_top_px is None:
@@ -1027,7 +895,7 @@ def _build_title_css(size: str, orientation: str, margin: str) -> str:
         "break-after: page;page-break-after: always;}}"
         ".gw-title-page .gw-title{font-size:5.0em;font-weight:800;margin:0;color:#111;}"
         ".gw-title-page .gw-sub{margin-top:1.1em;color:#555;font-size:1.3em;line-height:1.6;display:inline-flex;gap:.8em;align-items:baseline;justify-content:center;flex-wrap:wrap;}"
-        ".gw-title-page .gw-sub > * + *::before{content:'\u00B7';margin:0 .25em;color:#99a1ad;}"
+        ".gw-title-page .gw-sub > * + *::before{content:'\u00b7';margin:0 .25em;color:#99a1ad;}"
         "@media (prefers-color-scheme: dark){.gw-title-page .gw-title{color:#e6e8ef;} .gw-title-page .gw-sub{color:#a0a7c1;} .gw-title-page .gw-sub > * + *::before{color:#5a648a;}}"
     )
 
@@ -1063,16 +931,15 @@ def _build_title_page_html(*, enabled: bool, title: str, date: str, author: str)
     if not (t or d or a):
         return ""
 
-    parts: list[str] = ["<section class=\"gw-title-page\">",
-                        "<div>"]
+    parts: list[str] = ['<section class="gw-title-page">', "<div>"]
     if t:
-        parts.append(f"<h1 class=\"gw-title\">{t}</h1>")
+        parts.append(f'<h1 class="gw-title">{t}</h1>')
     if d or a:
-        parts.append("<div class=\"gw-sub\">")
+        parts.append('<div class="gw-sub">')
         if d:
-            parts.append(f"<div class=\"gw-date\">{d}</div>")
+            parts.append(f'<div class="gw-date">{d}</div>')
         if a:
-            parts.append(f"<div class=\"gw-author\">{a}</div>")
+            parts.append(f'<div class="gw-author">{a}</div>')
         parts.append("</div>")
     parts.append("</div></section>")
 
@@ -1108,7 +975,9 @@ def _build_page_vars_css(size: str, orientation: str, margin: str) -> str:
     w_px = _mm_to_px(w_mm)
     h_px = _mm_to_px(h_mm)
     margin_spec = margin.strip() if margin else settings.pdf_page_margin_default
-    margin_top, margin_right, margin_bottom, margin_left = _expand_margin_shorthand(margin_spec)
+    margin_top, margin_right, margin_bottom, margin_left = _expand_margin_shorthand(
+        margin_spec
+    )
     return (
         ":root{"
         f"--page-width-px:{w_px}px;"
@@ -1131,7 +1000,7 @@ def _page_dimensions_mm(size: str) -> tuple[float, float]:
         "a4": (210.0, 297.0),
         "a5": (148.0, 210.0),
         "letter": (215.9, 279.4),  # 8.5 x 11 in
-        "legal": (215.9, 355.6),   # 8.5 x 14 in
+        "legal": (215.9, 355.6),  # 8.5 x 14 in
     }
     # Strip trailing orientation keywords such as "landscape"
     # "A4 landscape"などの表記では末尾の単語を除去して検索する
@@ -1227,7 +1096,9 @@ class _ImageWidthNormalizer(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
         self._chunks.append(self._serialize_start(tag, attrs, False))
 
-    def handle_startendtag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, Optional[str]]]
+    ) -> None:
         self._chunks.append(self._serialize_start(tag, attrs, True))
 
     def handle_endtag(self, tag: str) -> None:
@@ -1378,7 +1249,9 @@ def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
 
     # Process GitHub-style callouts inside blockquotes
     # 引用ブロック内のGitHubスタイルコールアウトを処理する
-    callout_re = re.compile(r"^\s*>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|DANGER|INFO)\]\s*(.*)$", re.I)
+    callout_re = re.compile(
+        r"^\s*>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|DANGER|INFO)\]\s*(.*)$", re.I
+    )
 
     i = 0
     n = len(lines)
@@ -1398,12 +1271,12 @@ def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
             i += 1
             while i < n:
                 ln = lines[i]
-                if not ln.lstrip().startswith('>'):
+                if not ln.lstrip().startswith(">"):
                     break
                 # Strip the leading '>' and optional space
                 # 先頭の">"と任意のスペース1つを取り除く
                 stripped = ln.lstrip()[1:]
-                if stripped.startswith(' '):
+                if stripped.startswith(" "):
                     stripped = stripped[1:]
                 content.append(stripped)
                 i += 1
@@ -1424,7 +1297,7 @@ def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
 
         # Handle :::note ... ::: style admonitions
         # :::note ... ::: 形式のアドモニションを処理する
-        if lines[i].lstrip().startswith(':::'):
+        if lines[i].lstrip().startswith(":::"):
             # Parse the opening definition line to extract type and title
             # 先頭の定義行を解析して種別とタイトルを取り出す
             opener = lines[i].lstrip()[3:].strip()
@@ -1434,22 +1307,26 @@ def _normalize_admonitions(md: str, *, collapse_inside: bool = False) -> str:
                 parts = opener.split(None, 1)
                 typ = parts[0].lower()
                 raw_title = parts[1] if len(parts) > 1 else None
-                title = _strip_admonition_title_leading_emoji(raw_title) if raw_title else None
+                title = (
+                    _strip_admonition_title_leading_emoji(raw_title)
+                    if raw_title
+                    else None
+                )
             else:
-                typ = 'note'
+                typ = "note"
                 title = None
 
             i += 1
             body: list[str] = []
-            while i < n and not lines[i].lstrip().startswith(':::'):
+            while i < n and not lines[i].lstrip().startswith(":::"):
                 body.append(lines[i])
                 i += 1
             # Skip the closing ':::' marker if present
             # 終端の':::'があれば読み飛ばす
-            if i < n and lines[i].lstrip().startswith(':::'):
+            if i < n and lines[i].lstrip().startswith(":::"):
                 i += 1
 
-            title_part = f' "{title}"' if title else ''
+            title_part = f' "{title}"' if title else ""
             if collapse_inside and body:
                 body = _collapse_inside_block(body)
             out.append(f"!!! {typ}{title_part}")
@@ -1472,12 +1349,22 @@ def _strip_admonition_title_leading_emoji(title: str | None) -> str | None:
     # Known emoji prefixes used in our CSS or common aliases
     # CSS側で利用している、または一般的な絵文字プレフィクスの一覧
     prefixes = [
-        "⚠", "❗", "ℹ", "✎", "💡", "⛔",
-        ":warning:", ":info:", ":bulb:", ":pencil:", ":exclamation:", ":no_entry:",
+        "⚠",
+        "❗",
+        "ℹ",
+        "✎",
+        "💡",
+        "⛔",
+        ":warning:",
+        ":info:",
+        ":bulb:",
+        ":pencil:",
+        ":exclamation:",
+        ":no_entry:",
     ]
     for p in prefixes:
         if t.startswith(p):
-            t = t[len(p):].lstrip(" -:|\t")
+            t = t[len(p) :].lstrip(" -:|\t")
             break
     return t or None
 
