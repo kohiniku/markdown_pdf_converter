@@ -585,7 +585,7 @@ function App() {
                     onChange={(e) => setPreviewMode(e.target.value as PreviewMode)}
                     className="input w-full md:w-auto"
                   >
-                    <option value="paginated">Paginated (auto page breaks)</option>
+                    <option value="paginated">Paginated (page guides)</option>
                     <option value="continuous">Continuous scroll</option>
                   </select>
                 </label>

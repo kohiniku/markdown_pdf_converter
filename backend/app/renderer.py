@@ -499,261 +499,9 @@ def render_markdown_to_html(
         resolved_orientation,
         resolved_margin,
     )
-    preview_script = (
-        "<script>(function(){\n"
-        "var SRC_HTML=null;\n"
-        "function paginate(){\n"
-        "  var wrapper=document.querySelector('.gw-page-wrapper');\n"
-        "  if(!wrapper) return;\n"
-        "  var source=null;\n"
-        "  if(!SRC_HTML){\n"
-        "    var first=wrapper.querySelector('.gw-page'); if(!first) return;\n"
-        "    var content=first.querySelector('.gw-container'); if(!content) return;\n"
-        "    SRC_HTML=content.innerHTML;\n"
-        "  }\n"
-        "  source=document.createElement('div'); source.innerHTML=SRC_HTML;\n"
-        "  var nodes=Array.prototype.slice.call(source.childNodes);\n"
-        "  var pages=document.createElement('div');pages.className='gw-pages';\n"
-        "  wrapper.innerHTML='';wrapper.appendChild(pages);\n"
-        "  function makePage(){\n"
-        "    var outer=document.createElement('div');outer.className='gw-page-outer';\n"
-        "    var pg=document.createElement('article');pg.className='gw-page';\n"
-        "    var cont=document.createElement('div');cont.className='gw-container';\n"
-        "    pg.appendChild(cont);outer.appendChild(pg);pages.appendChild(outer);\n"
-        "    return {outer:outer, pg:pg, cont:cont};\n"
-        "  }\n"
-        "  var cur=makePage();\n"
-        "  function fits(){return cur.pg.scrollHeight <= cur.pg.clientHeight + 0.5;}\n"
-        "  function copyAttributes(src,dest){\n"
-        "    if(!src||!src.attributes) return;\n"
-        "    for(var i=0;i<src.attributes.length;i++){ var attr=src.attributes[i]; dest.setAttribute(attr.name, attr.value); }\n"
-        "  }\n"
-        "  function createTableShell(table){\n"
-        "    var shell=table.cloneNode(false);\n"
-        "    var child=table.firstElementChild;\n"
-        "    var colgroups=[];\n"
-        "    while(child){\n"
-        "      if(child.tagName==='COLGROUP'){ colgroups.push(child); }\n"
-        "      child=child.nextElementSibling;\n"
-        "    }\n"
-        "    for(var i=0;i<colgroups.length;i++){ shell.appendChild(colgroups[i].cloneNode(true)); }\n"
-        "    if(table.tHead){ shell.appendChild(table.tHead.cloneNode(true)); }\n"
-        "    var currentBody=null;\n"
-        "    var currentTemplate=null;\n"
-        "    var lastRow=null;\n"
-        "    var footerNode=null;\n"
-        "    return {\n"
-        "      table:shell,\n"
-        "      ensureBody:function(template){\n"
-        "        if(!currentBody || (template && template!==currentTemplate)){\n"
-        "          currentBody=document.createElement('tbody');\n"
-        "          if(template && template.tagName==='TBODY'){ copyAttributes(template,currentBody); }\n"
-        "          shell.appendChild(currentBody);\n"
-        "          currentTemplate=template;\n"
-        "        }\n"
-        "      },\n"
-        "      appendRow:function(row,template){\n"
-        "        this.ensureBody(template);\n"
-        "        currentBody.appendChild(row);\n"
-        "        lastRow=row;\n"
-        "      },\n"
-        "      removeLastRow:function(){\n"
-        "        if(lastRow && currentBody && lastRow.parentNode===currentBody){\n"
-        "          currentBody.removeChild(lastRow);\n"
-        "          if(!currentBody.childElementCount){\n"
-        "            shell.removeChild(currentBody);\n"
-        "            currentBody=null;\n"
-        "            currentTemplate=null;\n"
-        "          }\n"
-        "        }\n"
-        "        lastRow=null;\n"
-        "      },\n"
-        "      appendFooter:function(node){\n"
-        "        if(footerNode && footerNode.parentNode===shell){ shell.removeChild(footerNode); }\n"
-        "        footerNode=node;\n"
-        "        if(footerNode){ shell.appendChild(footerNode); }\n"
-        "      },\n"
-        "      removeFooter:function(){\n"
-        "        if(footerNode && footerNode.parentNode===shell){ shell.removeChild(footerNode); }\n"
-        "        footerNode=null;\n"
-        "      },\n"
-        "      hasBody:function(){ return !!currentBody; }\n"
-        "    };\n"
-        "  }\n"
-        "  function paginateTable(table){\n"
-        "    if(!table || !table.tBodies || !table.tBodies.length){\n"
-        "      var clone=table.cloneNode(true);\n"
-        "      cur.cont.appendChild(clone);\n"
-        "      if(!fits()){\n"
-        "        cur.cont.removeChild(clone);\n"
-        "        cur=makePage();\n"
-        "        cur.cont.appendChild(clone);\n"
-        "      }\n"
-        "      return;\n"
-        "    }\n"
-        "    var foot=table.tFoot ? table.tFoot.cloneNode(true) : null;\n"
-        "    var sections=[];\n"
-        "    for(var b=0;b<table.tBodies.length;b++){\n"
-        "      var body=table.tBodies[b];\n"
-        "      var rows=Array.prototype.slice.call(body.rows||[]);\n"
-        "      if(!rows.length) continue;\n"
-        "      for(var r=0;r<rows.length;r++){\n"
-        "        sections.push({row: rows[r].cloneNode(true), template: body});\n"
-        "      }\n"
-        "    }\n"
-        "    if(!sections.length){\n"
-        "      var emptyClone=table.cloneNode(true);\n"
-        "      cur.cont.appendChild(emptyClone);\n"
-        "      if(!fits()){\n"
-        "        cur.cont.removeChild(emptyClone);\n"
-        "        cur=makePage();\n"
-        "        cur.cont.appendChild(emptyClone);\n"
-        "      }\n"
-        "      return;\n"
-        "    }\n"
-        "    function newShell(){\n"
-        "      var shell=createTableShell(table);\n"
-        "      cur.cont.appendChild(shell.table);\n"
-        "      return shell;\n"
-        "    }\n"
-        "    var shell=newShell();\n"
-        "    for(var s=0;s<sections.length;s++){\n"
-        "      var spec=sections[s];\n"
-        "      shell.appendRow(spec.row, spec.template);\n"
-        "      if(!fits()){\n"
-        "        shell.removeLastRow();\n"
-        "        cur=makePage();\n"
-        "        shell=newShell();\n"
-        "        shell.appendRow(spec.row, spec.template);\n"
-        "      }\n"
-        "    }\n"
-        "    if(foot){\n"
-        "      shell.appendFooter(foot.cloneNode(true));\n"
-        "      if(!fits()){\n"
-        "        shell.removeFooter();\n"
-        "        cur=makePage();\n"
-        "        shell=newShell();\n"
-        "        shell.appendFooter(foot.cloneNode(true));\n"
-        "      }\n"
-        "    }\n"
-        "  }\n"
-        "  function paginateList(list){\n"
-        "    if(!list || !list.children || !list.children.length){\n"
-        "      var clone=list.cloneNode(true);\n"
-        "      cur.cont.appendChild(clone);\n"
-        "      if(!fits()){\n"
-        "        cur.cont.removeChild(clone);\n"
-        "        cur=makePage();\n"
-        "        cur.cont.appendChild(clone);\n"
-        "      }\n"
-        "      return;\n"
-        "    }\n"
-        "    var items=[];\n"
-        "    for(var ci=0;ci<list.children.length;ci++){\n"
-        "      var child=list.children[ci];\n"
-        "      if(child.tagName && child.tagName.toLowerCase()==='li'){ items.push(child.cloneNode(true)); }\n"
-        "    }\n"
-        "    if(!items.length){\n"
-        "      var passthrough=list.cloneNode(true);\n"
-        "      cur.cont.appendChild(passthrough);\n"
-        "      if(!fits()){\n"
-        "        cur.cont.removeChild(passthrough);\n"
-        "        cur=makePage();\n"
-        "        cur.cont.appendChild(passthrough);\n"
-        "      }\n"
-        "      return;\n"
-        "    }\n"
-        "    var isOrdered=list.tagName.toLowerCase()==='ol';\n"
-        "    var baseStart=1;\n"
-        "    if(isOrdered){\n"
-        "      var startAttr=list.getAttribute('start');\n"
-        "      if(startAttr){ baseStart=parseInt(startAttr,10) || 1; }\n"
-        "    }\n"
-        "    var index=0;\n"
-        "    function newShell(){\n"
-        "      var shell=list.cloneNode(false);\n"
-        "      copyAttributes(list, shell);\n"
-        "      if(isOrdered){\n"
-        "        var startVal=baseStart + index;\n"
-        "        if(startVal !== 1){ shell.setAttribute('start', startVal); } else { shell.removeAttribute('start'); }\n"
-        "      }\n"
-        "      cur.cont.appendChild(shell);\n"
-        "      return shell;\n"
-        "    }\n"
-        "    var shell=null;\n"
-        "    while(index < items.length){\n"
-        "      if(!shell){ shell=newShell(); }\n"
-        "      var li=items[index];\n"
-        "      shell.appendChild(li.cloneNode(true));\n"
-        "      if(!fits()){\n"
-        "        shell.removeChild(shell.lastChild);\n"
-        "        if(!shell.childElementCount){\n"
-        "          cur.cont.removeChild(shell);\n"
-        "        }\n"
-        "        cur=makePage();\n"
-        "        shell=newShell();\n"
-        "        shell.appendChild(li.cloneNode(true));\n"
-        "        if(!fits()){\n"
-        "          // If even a single item does not fit, force it onto a new page.\n"
-        "          shell.removeChild(shell.lastChild);\n"
-        "          cur.cont.removeChild(shell);\n"
-        "          cur=makePage();\n"
-        "          shell=newShell();\n"
-        "          shell.appendChild(li.cloneNode(true));\n"
-        "        }\n"
-        "      }else{\n"
-        "        index++;\n"
-        "      }\n"
-        "    }\n"
-        "  }\n"
-        "  for(var i=0;i<nodes.length;i++){\n"
-        "    var node=nodes[i];\n"
-        "    if(node.nodeType===1 && node.classList && node.classList.contains('gw-page-break')){\n"
-        "      if(cur.cont.childNodes.length===0) continue;\n"
-        "      cur=makePage();\n"
-        "      continue;\n"
-        "    }\n"
-        "    if(node.nodeType===1 && node.tagName && node.tagName.toLowerCase()==='table'){\n"
-        "      paginateTable(node);\n"
-        "      continue;\n"
-        "    }\n"
-        "    if(node.nodeType===1 && node.tagName){\n"
-        "      var tag=node.tagName.toLowerCase();\n"
-        "      if(tag==='ul' || tag==='ol'){\n"
-        "        paginateList(node);\n"
-        "        continue;\n"
-        "      }\n"
-        "    }\n"
-        "    var toAdd=node.cloneNode(true);\n"
-        "    cur.cont.appendChild(toAdd);\n"
-        "    if(!fits()){\n"
-        "      cur.cont.removeChild(toAdd);\n"
-        "      cur=makePage();\n"
-        "      cur.cont.appendChild(toAdd);\n"
-        "    }\n"
-        "  }\n"
-        "}\n"
-        "function scalePages(){\n"
-        "  var wrapper=document.querySelector('.gw-page-wrapper');\n"
-        "  if(!wrapper) return;\n"
-        "  var root=document.documentElement;\n"
-        "  var cs=getComputedStyle(root);\n"
-        "  var pageWidth=parseFloat(cs.getPropertyValue('--page-width-px'))||794;\n"
-        "  var avail=wrapper.clientWidth - 32;\n"
-        "  var scale=1; if(pageWidth>0){ scale=Math.min(1, Math.max(0.35, avail/pageWidth)); }\n"
-        "  var list=wrapper.querySelectorAll('.gw-page-outer');\n"
-        "  for(var i=0;i<list.length;i++){ list[i].style.setProperty('--scale', String(scale)); }\n"
-        "}\n"
-        "function init(){paginate(); scalePages(); window.addEventListener('resize', scalePages);\n"
-        "  var imgs=document.images||[]; for(var k=0;k<imgs.length;k++){ imgs[k].addEventListener('load', function(){ paginate(); scalePages(); }); }\n"
-        "}\n"
-        "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', init);}else{init();}\n"
-        "})();</script>"
+    preview_flow_css = (
+        _build_preview_flow_css() if (preview_only_layout or paginated_preview) else ""
     )
-
-    if preview_only_layout:
-        preview_script = ""
-    preview_flow_css = _build_preview_flow_css() if preview_only_layout else ""
 
     if preview_only_layout:
         html_doc = f"""
@@ -768,7 +516,6 @@ def render_markdown_to_html(
             <div class=\"gw-preview-scroll\">
               <div class=\"gw-container\">{html_body}</div>
             </div>
-            {preview_script}
           </body>
         </html>
         """
@@ -776,25 +523,33 @@ def render_markdown_to_html(
             theme_css + title_css + base_css + page_vars_css + preview_flow_css
         )
     elif paginated_preview:
+        page_hint_css = _build_preview_page_hint_css()
+        page_hint_script = _build_preview_page_hint_script()
         html_doc = f"""
         <!DOCTYPE html>
         <html>
           <head>
             <meta charset=\"utf-8\" />
             <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-            <style>{theme_css}{title_css}{base_css}{page_css}{page_vars_css}</style>
+            <style>{theme_css}{title_css}{base_css}{page_vars_css}{preview_flow_css}{page_hint_css}</style>
           </head>
-          <body class=\"gw-screen gw-preview-pages\">
-            <div class=\"gw-page-wrapper\" data-preview-mode=\"dynamic\">
-              <article class=\"gw-page\">
-                <div class=\"gw-container\">{html_body}</div>
-              </article>
+          <body class=\"gw-screen gw-preview-flow gw-preview-hybrid\">
+            <div class=\"gw-preview-scroll gw-preview-scroll--guides\">
+              <div class=\"gw-container\">{html_body}</div>
             </div>
-            {preview_script}
+            <p class=\"gw-page-hint-legend\">Page guides indicate approximate PDF page ends. 印刷時の正確な改ページは出力PDFをご確認ください。</p>
+            {page_hint_script}
           </body>
         </html>
         """
-        combined_css = theme_css + title_css + base_css + page_css + page_vars_css
+        combined_css = (
+            theme_css
+            + title_css
+            + base_css
+            + page_vars_css
+            + preview_flow_css
+            + page_hint_css
+        )
     else:
         html_doc = f"""
         <!DOCTYPE html>
@@ -810,7 +565,6 @@ def render_markdown_to_html(
                 <div class=\"gw-container\">{html_body}</div>
               </article>
             </div>
-            {preview_script}
           </body>
         </html>
         """
@@ -822,7 +576,7 @@ def _build_preview_flow_css() -> str:
     return (
         "@media screen{"  # Continuous scroll preview styling
         "body.gw-preview-flow{background:var(--gw-bg);}"
-        ".gw-preview-scroll{max-width:min(100%, calc(var(--page-width-px, 900px) + 48px));margin:0 auto;padding:24px 0 72px;}"
+        ".gw-preview-scroll{max-width:min(100%, calc(var(--page-width-px, 900px) + 320px));margin:0 auto;padding:32px 0 96px;overflow-x:hidden;}"
         ".gw-preview-scroll .gw-container{"
         "background-color:#fff;border-radius:16px;border:1px solid rgba(15,23,42,0.08);"
         "box-shadow:0 20px 45px rgba(15,23,42,0.12);max-width:100%;"
@@ -830,7 +584,7 @@ def _build_preview_flow_css() -> str:
         "}"
         ".gw-preview-flow .gw-container > *:first-child{margin-top:0;}"
         ".gw-preview-flow .gw-container > *:last-child{margin-bottom:0;}"
-        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}"
+        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}" \
         ".gw-preview-flow .gw-page-break-soft{display:none!important;}"
         "}"
         "@media (prefers-color-scheme: dark){"
@@ -839,9 +593,83 @@ def _build_preview_flow_css() -> str:
         "background-color:#111827;border-color:rgba(148,163,184,0.35);"
         "box-shadow:0 24px 60px rgba(0,0,0,0.45);"
         "}"
-        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}"
+        ".gw-preview-flow .gw-page-break{display:none!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}" \
         ".gw-preview-flow .gw-page-break-soft{display:none!important;}"
         "}\n"
+    )
+
+
+
+def _build_preview_page_hint_css() -> str:
+    return (
+        ".gw-preview-hybrid .gw-page-break{display:block!important;height:0!important;margin:24px 0!important;padding:0;border-top:1px dashed rgba(15,23,42,0.25);}"
+        ".dark .gw-preview-hybrid .gw-page-break{border-color:rgba(148,163,184,0.45);}"
+        ".gw-preview-scroll--guides{position:relative;}"
+        ".gw-preview-scroll--guides .gw-container{position:relative;z-index:1;}"
+        ".gw-page-hints{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:2;}"
+        ".gw-page-hint{position:absolute;left:-10px;right:-10px;height:0;border-top:1px dashed rgba(15,23,42,0.35);}" \
+        ".gw-page-hint::before{content:'';position:absolute;left:0;right:0;top:-8px;height:22px;" \
+        "background:linear-gradient(180deg, rgba(248,250,252,0.9), rgba(248,250,252,0));" \
+        "opacity:0.85;}" \
+        ".gw-page-hint::after{content:'Page ' attr(data-page);position:absolute;right:0.5rem;top:-14px;" \
+        "font-size:0.75rem;color:#475569;background:rgba(248,250,252,0.9);padding:2px 6px;"
+        "border-radius:999px;border:1px solid rgba(148,163,184,0.35);font-weight:600;}"
+        ".dark .gw-page-hint{border-color:rgba(148,163,184,0.35);}" \
+        ".dark .gw-page-hint::before{background:linear-gradient(180deg, rgba(11,16,32,0.8), rgba(11,16,32,0));}" \
+        ".dark .gw-page-hint::after{background:rgba(11,16,32,0.9);color:#cbd5f5;border-color:rgba(79,141,247,0.4);}"
+        ".gw-page-hint-legend{margin:12px auto 0;max-width:min(100%, calc(var(--page-width-px, 900px) + 96px));"
+        "text-align:center;font-size:0.78rem;color:var(--gw-muted,#57606a);font-style:italic;}"
+        ".dark .gw-page-hint-legend{color:rgba(224,231,255,0.7);}"  
+    )
+
+
+def _build_preview_page_hint_script() -> str:
+    return (
+        "<script>(function(){\n"
+        "function toNumber(val){var n=parseFloat(val); return isNaN(n)?0:n;}\n"
+        "function rebuild(){\n"
+        "  var container=document.querySelector('.gw-preview-scroll--guides .gw-container');\n"
+        "  if(!container) return;\n"
+        "  var root=document.documentElement;\n"
+        "  var cs=getComputedStyle(root);\n"
+        "  var inner=toNumber(cs.getPropertyValue('--page-inner-height-px'));\n"
+        "  if(!(inner>0)) return;\n"
+        "  var hints=container.querySelector('.gw-page-hints');\n"
+        "  if(!hints){hints=document.createElement('div');hints.className='gw-page-hints';container.appendChild(hints);}\n"
+        "  hints.innerHTML='';\n"
+        "  var total=container.scrollHeight;\n"
+        "  var manual=Array.prototype.slice.call(container.querySelectorAll('.gw-page-break'));\n"
+        "  manual.sort(function(a,b){return a.offsetTop - b.offsetTop;});\n"
+        "  var cursor=0;\n"
+        "  var page=1;\n"
+        "  function addHint(offset){\n"
+        "    var marker=document.createElement('div');\n"
+        "    marker.className='gw-page-hint';\n"
+        "    marker.style.top=offset+'px';\n"
+        "    marker.setAttribute('data-page', String(page));\n"
+        "    hints.appendChild(marker);\n"
+        "  }\n"
+        "  function fillUntil(limit){\n"
+        "    while(cursor + inner < limit - 2){\n"
+        "      cursor += inner;\n"
+        "      page += 1;\n"
+        "      addHint(cursor);\n"
+        "    }\n"
+        "  }\n"
+        "  for(var i=0;i<manual.length;i++){\n"
+        "    var target=manual[i].offsetTop;\n"
+        "    fillUntil(target);\n"
+        "    if(target - cursor > 2){\n"
+        "      cursor = target;\n"
+        "    }\n"
+        "    page += 1;\n"
+        "    addHint(target);\n"
+        "    cursor = target;\n"
+        "  }\n"
+        "  fillUntil(total);\n"
+        "}\n"
+        "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', function(){rebuild(); window.addEventListener('resize', rebuild);});}else{rebuild(); window.addEventListener('resize', rebuild);}\n"
+        "})();</script>"
     )
 
 
@@ -978,6 +806,14 @@ def _build_page_vars_css(size: str, orientation: str, margin: str) -> str:
     margin_top, margin_right, margin_bottom, margin_left = _expand_margin_shorthand(
         margin_spec
     )
+    default_top, _, default_bottom, _ = _expand_margin_shorthand(
+        settings.pdf_page_margin_default
+    )
+    margin_top_px = _css_length_to_px(margin_top) or _css_length_to_px(default_top) or 0
+    margin_bottom_px = (
+        _css_length_to_px(margin_bottom) or _css_length_to_px(default_bottom) or 0
+    )
+    inner_height_px = max(int(round(h_px - margin_top_px - margin_bottom_px)), 0)
     return (
         ":root{"
         f"--page-width-px:{w_px}px;"
@@ -987,6 +823,7 @@ def _build_page_vars_css(size: str, orientation: str, margin: str) -> str:
         f"--page-margin-right:{margin_right};"
         f"--page-margin-bottom:{margin_bottom};"
         f"--page-margin-left:{margin_left};"
+        f"--page-inner-height-px:{inner_height_px}px;"
         "}\n"
     )
 
