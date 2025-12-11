@@ -55,7 +55,7 @@ describe('App Component', () => {
   test('paginated preview note is shown by default', () => {
     render(<App />);
     expect(
-      screen.getByText(/Rendered pages match actual PDF pagination/i)
+    screen.getByText(/Page guides approximate PDF breaks/i)
     ).toBeInTheDocument();
   });
 

@@ -591,7 +591,7 @@ function App() {
                 </label>
                 <p className="text-xs" style={{ color: 'var(--muted)' }}>
                   {previewMode === 'paginated'
-                    ? 'Rendered pages match actual PDF pagination.'
+                    ? 'Page guides approximate PDF breaks.'
                     : 'Use continuous mode if paginated preview feels heavy.'}
                 </p>
               </div>
