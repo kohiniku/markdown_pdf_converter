@@ -747,10 +747,7 @@ def render_markdown_to_html(
 
     if preview_only_layout:
         preview_script = ""
-    elif paginated_preview:
-        preview_script = ""
     preview_flow_css = _build_preview_flow_css() if preview_only_layout else ""
-    static_preview_css = _build_static_preview_css() if paginated_preview else ""
 
     if preview_only_layout:
         html_doc = f"""
@@ -771,29 +768,25 @@ def render_markdown_to_html(
         """
         combined_css = theme_css + title_css + base_css + page_vars_css + preview_flow_css
     elif paginated_preview:
-        template_markup = (
-            f"<template id=\"gw-preview-template\">"
-            f"<div class=\"gw-container\">{html_body}</div>"
-            "</template>"
-        )
         html_doc = f"""
         <!DOCTYPE html>
         <html>
           <head>
             <meta charset=\"utf-8\" />
             <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-            <style>{theme_css}{title_css}{base_css}{page_css}{page_vars_css}{static_preview_css}</style>
+            <style>{theme_css}{title_css}{base_css}{page_css}{page_vars_css}</style>
           </head>
-          <body class=\"gw-screen gw-static-preview\">
-            {template_markup}
-            <div class=\"gw-page-wrapper\" data-preview-mode=\"static\">
-              <div id=\"gw-pages\"></div>
+          <body class=\"gw-screen gw-preview-pages\">
+            <div class=\"gw-page-wrapper\" data-preview-mode=\"dynamic\">
+              <article class=\"gw-page\">
+                <div class=\"gw-container\">{html_body}</div>
+              </article>
             </div>
-            {_build_static_preview_script()}
+            {preview_script}
           </body>
         </html>
         """
-        combined_css = theme_css + title_css + base_css + page_css + page_vars_css + static_preview_css
+        combined_css = theme_css + title_css + base_css + page_css + page_vars_css
     else:
         html_doc = f"""
         <!DOCTYPE html>
@@ -843,117 +836,6 @@ def _build_preview_flow_css() -> str:
         "}\n"
     )
 
-
-def _build_static_preview_css() -> str:
-    return (
-        ".gw-static-preview template{display:none;}"
-        ".gw-preview-probe{position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;"
-        "width:var(--page-width-px,794px);z-index:-1;}"
-        ".gw-static-preview .gw-page-break-soft{display:block;width:100%;height:0;margin:0 0 8px;border:0;padding:0;}"
-        ".gw-page-wrapper[data-preview-mode=\"static\"]{display:flex;justify-content:center;padding:16px;overflow:auto;}"
-        ".gw-page-wrapper[data-preview-mode=\"static\"] #gw-pages{display:flex;flex-direction:column;align-items:center;"
-        "gap:18px;width:100%;}"
-        ".gw-page-wrapper[data-preview-mode=\"static\"] .gw-page-outer{position:relative;"
-        "width:calc(var(--page-width-px,794px)*var(--scale,1));"
-        "height:calc(var(--page-height-px,1123px)*var(--scale,1));}"
-        ".gw-page-wrapper[data-preview-mode=\"static\"] .gw-page-outer>.gw-page{position:absolute;top:0;left:0;"
-        "width:100%;height:100%;transform-origin:top left;transform:scale(var(--scale,1));overflow:hidden;"
-        "background:#fff;}"
-        ".gw-page-slice{position:absolute;top:0;left:0;width:100%;}"
-        ".gw-page-slice .gw-container{max-width:none;padding:var(--page-margin-top,12mm) "
-        "var(--page-margin-right,12mm) var(--page-margin-bottom,12mm) var(--page-margin-left,12mm);}"
-        ".gw-static-preview .gw-page-break{display:block;margin:0;height:0;}"
-    )
-
-
-def _build_static_preview_script() -> str:
-    return (
-        "<script>(function(){\n"
-        "var rebuildTimer=null;\n"
-        "function clear(el){while(el.firstChild){el.removeChild(el.firstChild);}}\n"
-        "function buildPages(){\n"
-        "  var tmpl=document.getElementById('gw-preview-template');\n"
-        "  var host=document.getElementById('gw-pages');\n"
-        "  if(!tmpl||!host) return;\n"
-        "  var markup=tmpl.innerHTML;\n"
-        "  var probe=document.createElement('div');probe.className='gw-preview-probe';\n"
-        "  var probeArticle=document.createElement('article');probeArticle.className='gw-page';\n"
-        "  var probeSlice=document.createElement('div');probeSlice.className='gw-page-slice';\n"
-        "  var probeContainer=document.createElement('div');probeContainer.className='gw-container';\n"
-        "  probeContainer.innerHTML=markup;probeSlice.appendChild(probeContainer);probeArticle.appendChild(probeSlice);probe.appendChild(probeArticle);\n"
-        "  document.body.appendChild(probe);\n"
-        "  var root=document.documentElement;var styles=getComputedStyle(root);\n"
-        "  function toPx(raw){\n"
-        "    if(!raw) return 0;\n"
-        "    var text=String(raw).trim();\n"
-        "    if(!text) return 0;\n"
-        "    if(text.endsWith('px')) return parseFloat(text);\n"
-        "    if(text.endsWith('mm')) return parseFloat(text)*96/25.4;\n"
-        "    if(text.endsWith('cm')) return parseFloat(text)*96/2.54;\n"
-        "    if(text.endsWith('in')) return parseFloat(text)*96;\n"
-        "    return parseFloat(text) || 0;\n"
-        "  }\n"
-        "  var pageHeight=parseFloat(styles.getPropertyValue('--page-height-px'))||1123;\n"
-        "  var marginTop=toPx(styles.getPropertyValue('--page-margin-top'));\n"
-        "  var marginBottom=toPx(styles.getPropertyValue('--page-margin-bottom'));\n"
-        "  var innerHeight=pageHeight - marginTop - marginBottom;\n"
-        "  if(!(innerHeight>0)){ innerHeight=pageHeight; }\n"
-        "  var baseTop=probeContainer.getBoundingClientRect().top;\n"
-        "  var breaks=probeContainer.querySelectorAll('.gw-page-break');\n"
-        "  if(breaks&&breaks.length){\n"
-        "    for(var b=0;b<breaks.length;b++){\n"
-        "      var node=breaks[b];\n"
-        "      var rect=node.getBoundingClientRect();\n"
-        "      var offset=rect.top-baseTop;\n"
-        "      var remainder=offset%innerHeight;\n"
-        "      if(remainder<0){remainder+=innerHeight;}\n"
-        "      var gap=remainder===0?0:(innerHeight-remainder);\n"
-        "      node.style.display='block';\n"
-        "      node.style.height=gap+'px';\n"
-        "      node.style.margin='0';\n"
-        "      node.style.padding='0';\n"
-        "      node.style.border='0';\n"
-        "    }\n"
-        "  }\n"
-        "  var normalized=probeContainer.outerHTML;\n"
-        "  var totalHeight=probeContainer.scrollHeight;\n"
-        "  document.body.removeChild(probe);\n"
-        "  clear(host);\n"
-        "  var pages=Math.max(1, Math.ceil(totalHeight/innerHeight));\n"
-        "  for(var i=0;i<pages;i++){\n"
-        "    var outer=document.createElement('div');outer.className='gw-page-outer';\n"
-        "    var page=document.createElement('article');page.className='gw-page';\n"
-        "    var slice=document.createElement('div');slice.className='gw-page-slice';\n"
-        "    slice.innerHTML=normalized;\n"
-        "    slice.style.transform='translateY(-'+(i*innerHeight)+'px)';\n"
-        "    page.appendChild(slice);outer.appendChild(page);host.appendChild(outer);\n"
-        "  }\n"
-        "  scalePages();\n"
-        "}\n"
-        "function scalePages(){\n"
-        "  var wrapper=document.querySelector('.gw-page-wrapper[data-preview-mode=\"static\"]');\n"
-        "  if(!wrapper) return;\n"
-        "  var root=document.documentElement;var cs=getComputedStyle(root);\n"
-        "  var pageWidth=parseFloat(cs.getPropertyValue('--page-width-px'))||794;\n"
-        "  var avail=wrapper.clientWidth-32;var scale=1;\n"
-        "  if(pageWidth>0){scale=Math.min(1, Math.max(0.35, avail/pageWidth));}\n"
-        "  var pages=wrapper.querySelectorAll('.gw-page-outer');\n"
-        "  for(var i=0;i<pages.length;i++){\n"
-        "    pages[i].style.setProperty('--scale', String(scale));\n"
-        "  }\n"
-        "}\n"
-        "function schedule(){\n"
-        "  clearTimeout(rebuildTimer);\n"
-        "  rebuildTimer=setTimeout(buildPages,150);\n"
-        "}\n"
-        "if(document.readyState==='loading'){\n"
-        "  document.addEventListener('DOMContentLoaded', buildPages);\n"
-        "}else{\n"
-        "  buildPages();\n"
-        "}\n"
-        "window.addEventListener('resize', schedule);\n"
-        "})();</script>"
-    )
 
 def _build_title_css(size: str, orientation: str, margin: str) -> str:
     """Build CSS for the generated title page block.

@@ -83,6 +83,16 @@ def test_paginated_preview_builds_static_template():
     assert ".gw-page-slice" in html
 
 
+def test_paginated_preview_applies_per_page_margins():
+    _, css = renderer.render_markdown_to_html(
+        "# Body",
+        page_size="A4",
+        for_preview=True,
+    )
+    assert '.gw-page-wrapper[data-preview-mode="static"] .gw-page-outer>.gw-page' in css
+    assert 'box-sizing:border-box;padding:var(--page-margin-top' in css
+
+
 def _expected_available_height_px() -> int:
     page_size = renderer.settings.pdf_page_size_default
     orientation = renderer.settings.pdf_page_orientation_default
