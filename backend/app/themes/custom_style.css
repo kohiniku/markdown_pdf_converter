@@ -1,0 +1,11 @@
+/* open-deep-research レポート用（ODR 専用インスタンス markdown-pdf-backend-odr で使用） */
+h1 { color: #0b3d78; }
+h2 { color: #0b3d78; border-left-color: #2f81f7; }
+strong, b { color: #0b4f9c; }
+mark { background: linear-gradient(transparent 50%, #ffe27a 50%); color: inherit; padding: 0 .1em; }
+.admonition { border-left: 5px solid #2f81f7; border-radius: 6px; padding: .6em 1em; margin: 1em 0; background: #eef4ff; }
+.admonition-title { font-weight: 700; margin: 0 0 .3em; }
+.admonition.warning, .admonition.caution, .admonition.danger { border-left-color: #f59e0b; background: #fff7e6; }
+.admonition.tip { border-left-color: #16a34a; background: #ecfdf3; }
+th { background: #e8f0fe; }
+.admonition.important, .admonition.note, .admonition.info { border-left-color: #2f81f7 !important; background: #eef4ff !important; }

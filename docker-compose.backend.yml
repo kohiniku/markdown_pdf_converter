@@ -1,0 +1,25 @@
+# Compose for the ODR skill: backend only, host-bound to 127.0.0.1.
+# Used by the open-deep-research skill wrapper. Bring up with:
+#   docker compose -f docker-compose.backend.yml --env-file .env.backend up -d
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: markdown-pdf-backend-odr
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT}:${BACKEND_INTERNAL_PORT}"
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+      - output:/app/output
+    environment:
+      - DATABASE_URL=sqlite:///./app.db
+      - DEBUG=true
+      - HOST=127.0.0.1
+      - PORT=${BACKEND_INTERNAL_PORT}
+    restart: unless-stopped
+
+volumes:
+  uploads:
+  output:
