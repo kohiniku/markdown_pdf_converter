@@ -17,6 +17,7 @@ dependencies = [
     "markdown>=3.5.1",
     "pymdown-extensions>=10.4",
     "emoji>=2.12.1",
+    "ziamath==0.13",
     "aiofiles>=23.2.1",
     "pydantic-settings>=2.1.0",
     "Pillow>=10.4.0",

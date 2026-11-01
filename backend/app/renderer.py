@@ -12,6 +12,7 @@ import re
 import markdown as md
 
 from app.config import settings
+from app.math_rendering import MathSvgExtension, protect_math_blocks, restore_math_blocks
 
 
 _PREVIEW_PAGE_SIZE_ALIASES = {"preview", "preview use", "preview-use"}
@@ -398,6 +399,7 @@ def render_markdown_to_html(
     HTML全文と適用CSSを返すMarkdownレンダリング関数。GROWI v7と近い見た目になるように拡張や整形処理を施している。
     """
 
+    markdown_text, protected_math = protect_math_blocks(markdown_text)
     markdown_text = _replace_reserved_page_breaks(markdown_text)
 
     # Normalize GitHub-style callouts and ::: blocks into !!! admonitions
@@ -414,6 +416,8 @@ def render_markdown_to_html(
     if _collapse:
         markdown_text = collapse_soft_newlines(markdown_text)
 
+    markdown_text = restore_math_blocks(markdown_text, protected_math)
+
     extensions = [
         "admonition",
         "abbr",
@@ -422,6 +426,8 @@ def render_markdown_to_html(
         "footnotes",
         "tables",
         "pymdownx.details",
+        "pymdownx.arithmatex",
+        MathSvgExtension(),
         "pymdownx.superfences",
         "pymdownx.tasklist",
         "pymdownx.tilde",
@@ -432,6 +438,8 @@ def render_markdown_to_html(
         "toc",
     ]
     extension_configs = {
+        # 行内の $...$ は「$150から$180」のような金額表記を数式と誤認するので使わない（\(...\) のみ）。
+        "pymdownx.arithmatex": {"generic": True, "inline_syntax": ["round"]},
         "codehilite": {"guess_lang": False, "linenums": False},
         "pymdownx.tasklist": {"custom_checkbox": True},
         "pymdownx.magiclink": {"repo_url_shortener": True, "hide_protocol": True},
